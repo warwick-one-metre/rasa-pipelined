@@ -17,4 +17,5 @@
 
 """pipelined common code"""
 
+from .constants import CommandStatus
 from .validation import configure_flats_validation_schema, configure_standard_validation_schema

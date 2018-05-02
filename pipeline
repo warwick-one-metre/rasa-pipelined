@@ -28,6 +28,7 @@ import sys
 import pyds9
 import Pyro4
 from warwick.observatory.common import daemons
+from warwick.w1m.pipeline import CommandStatus
 
 SCRIPT_NAME = os.path.basename(sys.argv[0])
 sys.excepthook = Pyro4.util.excepthook
@@ -36,19 +37,6 @@ FMT_GREEN = '\033[92m'
 FMT_RED = '\033[91m'
 FMT_BOLD = '\033[1m'
 FMT_CLEAR = '\033[0m'
-
-# This should be kept in sync with the class in camd
-STATUS_CODES = {
-    # General error codes
-    1: 'error: command failed',
-    2: 'error: another command is already running',
-    10: 'error: command not accepted from this IP',
-    50: 'error: directory doesn\'t exist or isn\'t writable',
-    51: 'error: failed to create night directory (already exists?)',
-
-    -101: 'error: unable to communicate with pipeline daemon',
-    -201: 'warning: data partition has less than 15 GiB remaining',
-}
 
 # Mapping used for the 'type' command
 TYPE_VALUES = {
@@ -70,10 +58,9 @@ def run_command(command):
         ret = -101
 
     # Print message associated with error codes, except for -1 (error handled locally)
-    if ret in STATUS_CODES:
-        print(STATUS_CODES[ret])
-    elif ret != -1 and ret != 0:
-        print('Returned unknown status code: {0}'.format(ret))
+    if ret != -1 and ret != 0:
+        print(CommandStatus.message(ret))
+
     sys.exit(ret)
 
 def status():
@@ -282,7 +269,8 @@ def start_night():
     with daemons.onemetre_tcs_diskspace.connect() as diskspace:
         latest = diskspace.last_measurement()
         if latest['data_fs_available_bytes'] < DISKSPACE_WARN_THRESHOLD:
-            return -201
+            print('warning: data partition has less than 15 GiB remaining')
+            return -1
 
     return 0
 

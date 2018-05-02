@@ -52,6 +52,7 @@ from warwick.observatory.common import (
     helpers,
     TryLock)
 from warwick.observatory.common.helpers import pyro_client_matches
+from warwick.w1m.pipeline import CommandStatus
 
 # Set automatically when generating RPM package
 SOFTWARE_VERSION = 'UNKNOWN'
@@ -125,16 +126,6 @@ ENVIRONMENT_KEYS = [
 # TODO: Include environment daemon software versions, wind direction, TNG seeing
 
 # This should be kept in sync with the dictionary in pipeline
-class CommandStatus:
-    """Numeric return codes"""
-    # General error codes
-    Succeeded = 0
-    Failed = 1
-    Blocked = 2
-    InvalidControlIP = 10
-    ReferenceFrameError = 31
-    DirectoryNotWritable = 50
-    NewDirectoryFailed = 51
 
 def rescale_image_data(data, clip_low, clip_high):
     """ Returns a normalised array where clip_low percent of the pixels are 0 and
