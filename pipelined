@@ -1,19 +1,19 @@
 #!/usr/bin/env python3.4
 #
-# This file is part of pipelined.
+# This file is part of rasa-pipelined.
 #
-# pipelined is free software: you can redistribute it and/or modify
+# rasa-pipelined is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
 # the Free Software Foundation, either version 3 of the License, or
 # (at your option) any later version.
 #
-# pipelined is distributed in the hope that it will be useful,
+# rasa-pipelined is distributed in the hope that it will be useful,
 # but WITHOUT ANY WARRANTY; without even the implied warranty of
 # MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 # GNU General Public License for more details.
 #
 # You should have received a copy of the GNU General Public License
-# along with pipelined.  If not, see <http://www.gnu.org/licenses/>.
+# along with rasa-pipelined.  If not, see <http://www.gnu.org/licenses/>.
 
 """Daemon for the Warwick one-metre telescope frame pipeline"""
 
@@ -52,7 +52,9 @@ from warwick.observatory.common import (
     helpers,
     TryLock)
 from warwick.observatory.common.helpers import pyro_client_matches
-from warwick.w1m.pipeline import CommandStatus
+from warwick.rasa.pipeline import CommandStatus
+
+daemons.observatory_log.host = '127.0.0.1'
 
 # Set automatically when generating RPM package
 SOFTWARE_VERSION = 'UNKNOWN'
@@ -64,28 +66,14 @@ MAX_NOTIFY_WAIT = 10
 STATUS_QUERY_TIMEOUT = 1
 
 BASE_DATA_PATH = pathlib.Path('/home/ops/OBS_DATA/')
-PIXELSHIFT_PATH = '/home/ops/src/pixelshift/pixelshift'
-
-GUIDE_REFERENCE_FRAME_PATH = '/var/tmp/guide_reference.fits'
 
 # Configuration cache
 CONFIG_PATH = '/var/tmp/pipeline.json'
 
-CONTROL_IPS = [IP.OneMetreDome, IP.OneMetreTCS]
-NOTIFY_FRAME_IPS = [IP.OneMetreTCS]
+CONTROL_IPS = [IP.RASAMain]
+NOTIFY_FRAME_IPS = [IP.RASAMain]
 
-# Matrix coefficients transforming pixel offsets to sky offsets.
-# These are just the [CD1_1, CD1_2, CD2_1, CD2_2] wcs parameters
-GUIDE_TRANSFORM_MATRICES = {
-    'BLUE': [0.000108685545277, -3.58470982799E-07,
-             -2.98097156944E-07, -0.000108607868069],
-    'RED': [-0.00010858955941, 1.83797853216E-07,
-            -2.66674559873E-07, -0.000108601351771]
-}
-
-CAMERAS = ['BLUE', 'RED']
-
-GUIDE_FUDGE_FACTOR = 0.5
+CAMERAS = ['RASA']
 
 # Time limit (seconds) allowed to solve the WCS coordinates of a preview frame
 WCS_LIMIT = 4.0
@@ -104,23 +92,19 @@ OBJECT_PLATESCALE = 0.391
 OBJECT_MINPIX = 16
 
 # Top/bottom margin (in px) to offset the annotation labels
-ANNOTATION_LABEL_MARGIN = 30
+ANNOTATION_LABEL_MARGIN = 90
 
 ANNOTATION_LABEL = 'image; text {} {} #color=green font="helvetica 12 bold" text="{}" select=0'
 
 ENVIRONMENT_KEYS = [
-    ('vaisala', 'temperature', 'EXTTEMP', '[deg c] temperature outside dome'),
-    ('vaisala', 'relative_humidity', 'EXTHUMD', '[%] humidity outside dome'),
-    ('vaisala', 'pressure', 'PRESSURE', '[hPa] air pressure'),
-    ('vaisala', 'wind_speed', 'WINDSPD', '[m/s] wind speed outside dome'),
-    ('vaisala', 'median_wind_speed', 'MEDWIND', '[m/s] median wind speed (last 20 min)'),
-    ('roomalert', 'internal_temp', 'DOMETEMP', '[deg c] temperature inside dome'),
-    ('roomalert', 'internal_humidity', 'DOMEHUMD', '[%] humidity inside dome'),
-    ('roomalert', 'truss_temp', 'TRUSTEMP', '[deg c] temperature at top of telescope truss'),
+    ('goto_vaisala', 'temperature', 'EXTTEMP', '[deg c] temperature outside dome'),
+    ('goto_vaisala', 'relative_humidity', 'EXTHUMD', '[%] humidity outside dome'),
+    ('goto_vaisala', 'pressure', 'PRESSURE', '[hPa] air pressure'),
+    ('goto_vaisala', 'wind_speed', 'WINDSPD', '[m/s] wind speed outside dome'),
+    ('goto_vaisala', 'median_wind_speed', 'MEDWIND', '[m/s] median wind speed (last 20 min)'),
     ('superwasp', 'sky_temp', 'SKYTEMP', '[deg c] sky temperature'),
-    ('vaisala', 'dew_point_delta', 'DEWDELTA', '[deg c] temperature above dew point'),
+    ('goto_vaisala', 'dew_point_delta', 'DEWDELTA', '[deg c] temperature above dew point'),
     ('tng', 'dust', 'TNGDUST', '[ug/m3] TNG Dust measurement'),
-    ('power', 'light', 'DOMELITE', 'dome light is powered'),
 ]
 
 # TODO: Include environment daemon software versions, wind direction, TNG seeing
@@ -141,19 +125,6 @@ class PipelineDaemon:
     """Daemon interface for data pipeline"""
     def __init__(self):
         self._command_lock = threading.Lock()
-        self._guide_condition = threading.Condition()
-        self._guide_camera_id = None
-        self._guide_latest_frame = None
-        self._guide_x_binning = 1
-        self._guide_y_binning = 1
-        self._guide_cos_dec = 1
-        self._guide_background_tile_size = 0
-        self._guide_reference_frame = None
-
-        guide_thread = threading.Thread(target=self.__process_guide_frames)
-        guide_thread.daemon = True
-        guide_thread.start()
-
         self._process_queue = {}
         for cam in CAMERAS:
             self._process_queue[cam] = queue.Queue(maxsize=1)
@@ -195,9 +166,6 @@ class PipelineDaemon:
             with open(CONFIG_PATH, 'r') as infile:
                 data = json.load(infile)
 
-                self._guide_camera_id = data['guide_camera_id']
-                self._guide_background_tile_size = data['guide_background_tile_size']
-
                 self._wcs_enabled = data['wcs_enabled']
                 self._fwhm_enabled = data['fwhm_enabled']
                 self._intensity_stats_enabled = data['intensity_stats_enabled']
@@ -223,13 +191,6 @@ class PipelineDaemon:
             print('failed to load pipeline config with error: ')
             print(e)
 
-        try:
-            if self._guide_camera_id is not None:
-                self.__load_guide_reference(GUIDE_REFERENCE_FRAME_PATH)
-        except Exception as e:
-            print('Failed to load guide reference with error: ')
-            print(e)
-
     def __save_config(self):
         """Update the saved config cache on disk"""
         with open(CONFIG_PATH, 'w') as outfile:
@@ -249,9 +210,6 @@ class PipelineDaemon:
                 'dashboard_min_threshold': self._dashboard_min_threshold,
                 'dashboard_max_threshold': self._dashboard_max_threshold,
                 'dashboard_thumb_size': self._dashboard_thumb_size,
-
-                'guide_camera_id': self._guide_camera_id,
-                'guide_background_tile_size': self._guide_background_tile_size,
             }
 
             for cam in CAMERAS:
@@ -261,84 +219,6 @@ class PipelineDaemon:
                 })
 
             json.dump(data, outfile)
-
-    def __load_guide_reference(self, path):
-        """Loads and initializes the autoguider reference frame"""
-        shutil.copy(path, GUIDE_REFERENCE_FRAME_PATH)
-        with fits.open(GUIDE_REFERENCE_FRAME_PATH) as reference:
-            # pylint: disable=no-member
-            self._guide_x_binning = reference[0].header['CCD-XBIN']
-            self._guide_y_binning = reference[0].header['CCD-YBIN']
-            # pylint: enable=no-member
-
-            # Guide frames are processed in parallel to the regular processing
-            # so the telescope header keys may not exist
-            # Query the declination from the telescope directly, instead
-            with daemons.onemetre_telescope.connect(STATUS_QUERY_TIMEOUT) as teld:
-                t = teld.report_status()
-                self._guide_cos_dec = math.cos(t['dec'])
-
-        self._guide_reference_frame = GUIDE_REFERENCE_FRAME_PATH
-
-    def __process_guide_frames(self):
-        """Calculates image shifts between frames and offsets telescope to compensate"""
-        while True:
-            # Block until a frame is available for processing
-            frame = None
-            with self._guide_condition:
-                while self._guide_latest_frame is None:
-                    self._guide_condition.wait()
-
-                frame = self._guide_latest_frame
-                self._guide_latest_frame = None
-
-            # New guide session: take a copy of this frame to use as the reference
-            if self._guide_reference_frame is None:
-                print('taking', frame, 'as new guide reference')
-                log.info('pipelined', 'Initializing autoguider')
-                try:
-                    self.__load_guide_reference(frame)
-                    self.__save_config()
-                except Exception as e:
-                    print('failed with error: ' + str(e))
-                    log.error('pipelined', 'Failed to initialize autoguider (' + str(e) + ')')
-                continue
-
-            if self._guide_camera_id not in GUIDE_TRANSFORM_MATRICES:
-                print('no transform matrix for camera ' + self._guide_camera_id)
-                continue
-
-            try:
-                # TODO: use Donuts
-                output = subprocess.check_output(
-                    [PIXELSHIFT_PATH, frame, self._guide_reference_frame,
-                     str(self._guide_background_tile_size)], universal_newlines=True, timeout=5)
-
-                t = GUIDE_TRANSFORM_MATRICES[self._guide_camera_id]
-                coords = output.split(' ')
-
-                # Measured offset in px
-                dx = float(coords[0])
-                dy = float(coords[1])
-
-                # First-order approximated offset in ra, dec (degrees)
-                dra = (t[0] * dx + t[1] * dy) * self._guide_x_binning / self._guide_cos_dec
-                ddec = (t[2] * dx + t[3] * dy) * self._guide_y_binning
-
-                # Calculate actual telescope offset by running offsets through PID loop
-                # TODO: This currently only accounts for proportional offsets (no history)
-                guide_offset_ra = GUIDE_FUDGE_FACTOR * dra * math.pi / 180
-                guide_offset_dec = GUIDE_FUDGE_FACTOR * ddec * math.pi / 180
-
-                # TODO: Check for and drop anomalously large offsets
-
-                print('offset px: {} {}; arcsec: {} {}'.format(dx, dy, 3600 * dra, 3600 * ddec))
-
-                with daemons.onemetre_telescope.connect() as teld:
-                    teld.offset_radec_guiding(guide_offset_ra, guide_offset_dec)
-            except Exception as e:
-                print('failed to update guiding with error: ' + str(e))
-                log.error('pipelined', 'Failed to calculate guide offset (' + str(e) + ')')
 
     def __process_previews(self, unregister_on_error=True):
         """Updates the ds9 preview windows with data from the main processing thread"""
@@ -385,7 +265,7 @@ class PipelineDaemon:
         h.append(desc, end=True)
 
         try:
-            with daemons.onemetre_telescope.connect(STATUS_QUERY_TIMEOUT) as teld:
+            with daemons.rasa_telescope.connect(STATUS_QUERY_TIMEOUT) as teld:
                 t = teld.report_status()
                 h.append(fits.Card('TELSWVER', t['software_version'],
                                    'tcs server software version'), end=True)
@@ -437,7 +317,7 @@ class PipelineDaemon:
         h.append(desc, end=True)
 
         try:
-            with daemons.onemetre_environment.connect(STATUS_QUERY_TIMEOUT) as environment:
+            with daemons.rasa_environment.connect(STATUS_QUERY_TIMEOUT) as environment:
                 data = environment.status()
                 for (source, sensor, key, comment) in ENVIRONMENT_KEYS:
                     if source not in data or sensor not in data[source]:
@@ -660,12 +540,7 @@ class PipelineDaemon:
             scaled = rescale_image_data(data, self._dashboard_min_threshold,
                                         self._dashboard_max_threshold)
             png = Image.fromarray(scaled).convert('RGB')
-
-            # Red arm flips vertically only
-            # Blue arm flips horizontally and vertically
             png = ImageOps.flip(png)
-            if camera_id == 'BLUE':
-                png = ImageOps.mirror(png)
 
             png.save('/mnt/dashboard-generated/dashboard-' + camera_id + '.png', 'PNG', clobber=True)
             png.thumbnail((self._dashboard_thumb_size, self._dashboard_thumb_size))
@@ -685,7 +560,7 @@ class PipelineDaemon:
 
                 header[card.keyword] = card.value
 
-            with daemons.onemetre_operations.connect() as ops:
+            with daemons.rasa_operations.connect() as ops:
                 ops.notify_processed_frame(header)
 
         except Exception as e:
@@ -784,14 +659,7 @@ class PipelineDaemon:
         if not pyro_client_matches(NOTIFY_FRAME_IPS):
             return CommandStatus.InvalidControlIP
 
-        # Guide offsets should be applied ASAP
-        if self._guide_camera_id == camera_id:
-            # The guiding only cares about the latest frame
-            with self._guide_condition:
-                self._guide_latest_frame = path
-                self._guide_condition.notify()
-            print('updated guide frame', camera_id, path)
-
+        print(camera_id, path)
         if camera_id not in self._process_queue:
             raise Exception('Unknown camera id ' + camera_id)
 
@@ -808,34 +676,6 @@ class PipelineDaemon:
             print('WARNING: ' + camera_id + ' camera blocked for ' + str(wait) + 's by pipeline')
             log.warning('pipelined', camera_id + ' camera blocked for ' + str(wait) + \
                 's by pipeline')
-
-    @Pyro4.expose
-    def set_guide_camera(self, camera_id, background_tile_size=0, reference_frame=None):
-        """Sets the camera ID to use for guiding"""
-        if not pyro_client_matches(CONTROL_IPS):
-            return CommandStatus.InvalidControlIP
-
-        with TryLock(self._command_lock) as success:
-            if not success:
-                return CommandStatus.Blocked
-
-            if reference_frame is not None:
-                try:
-                    self.__load_guide_reference(reference_frame)
-                except Exception as e:
-                    print('Failed to load reference frame with error: ')
-                    print(e)
-                    return CommandStatus.ReferenceFrameError
-
-            self._guide_camera_id = camera_id
-            self._guide_background_tile_size = background_tile_size
-
-            if camera_id is not None:
-                log.info('pipelined', 'Configured autoguiding with ' + camera_id \
-                                     + ' camera and ' + str(background_tile_size) + ' px tiles')
-            else:
-                log.info('pipelined', 'Disabled autoguiding')
-            return CommandStatus.Succeeded
 
     @Pyro4.expose
     def set_archive_directory(self, directory):
@@ -1147,10 +987,6 @@ class PipelineDaemon:
     def report_status(self):
         """Returns a dictionary containing the current pipeline state"""
         return {
-            'guide_camera_id': self._guide_camera_id,
-            'guide_background_tile_size': self._guide_background_tile_size,
-            'guide_reference_frame': self._guide_reference_frame,
-
             'wcs_enabled': self._wcs_enabled,
             'fwhm_enabled': self._fwhm_enabled,
             'intensity_stats_enabled': self._intensity_stats_enabled,
@@ -1170,4 +1006,4 @@ class PipelineDaemon:
         }
 
 if __name__ == '__main__':
-    daemons.onemetre_pipeline.launch(PipelineDaemon())
+    daemons.rasa_pipeline.launch(PipelineDaemon())

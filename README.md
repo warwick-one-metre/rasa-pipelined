@@ -1,10 +1,9 @@
-## W1m data pipeline daemon [![Travis CI build status](https://travis-ci.org/warwick-one-metre/pipelined.svg?branch=master)](https://travis-ci.org/warwick-one-metre/pipelined)
+## RASA data pipeline daemon [![Travis CI build status](https://travis-ci.org/warwick-one-metre/rasa-pipelined.svg?branch=master)](https://travis-ci.org/warwick-one-metre/rasa-pipelined)
 
-Part of the observatory software for the Warwick one-meter, NITES, and GOTO telescopes.
+Part of the observatory software for the RASA prototype telescope.
 
 `pipelined` manages the data pipeline for frames after they have been acquired:
 
-* Autoguiding
 * Online Reduction
 * Generating previews for the web dashboard
 
@@ -14,7 +13,7 @@ See [Software Infrastructure](https://github.com/warwick-one-metre/docs/wiki/Sof
 
 ### Software setup
 
-After installing `onemetre-pipeline-server`, the `pipelined` must be enabled using:
+After installing `rasa-pipeline-server`, the `pipelined` must be enabled using:
 ```
 sudo systemctl enable pipelined.service
 ```
@@ -26,7 +25,7 @@ sudo systemctl start pipelined.service
 
 Next, open a port in the firewall so that other machines on the network can access the daemon:
 ```
-sudo firewall-cmd --zone=public --add-port=9012/tcp --permanent
+sudo firewall-cmd --zone=public --add-port=9032/tcp --permanent
 sudo firewall-cmd --reload
 ```
 

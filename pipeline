@@ -1,19 +1,19 @@
 #!/usr/bin/env python3.4
 #
-# This file is part of pipelined.
+# This file is part of rasa-pipelined.
 #
-# pipelined is free software: you can redistribute it and/or modify
+# rasa-pipelined is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
 # the Free Software Foundation, either version 3 of the License, or
 # (at your option) any later version.
 #
-# pipelined is distributed in the hope that it will be useful,
+# rasa-pipelined is distributed in the hope that it will be useful,
 # but WITHOUT ANY WARRANTY; without even the implied warranty of
 # MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 # GNU General Public License for more details.
 #
 # You should have received a copy of the GNU General Public License
-# along with pipelined.  If not, see <http://www.gnu.org/licenses/>.
+# along with rasa-pipelined.  If not, see <http://www.gnu.org/licenses/>.
 
 """Commandline client for managing the reduction pipeline"""
 
@@ -25,10 +25,11 @@ from pathlib import Path
 import random
 import subprocess
 import sys
+import numpy as np
 import pyds9
 import Pyro4
 from warwick.observatory.common import daemons
-from warwick.w1m.pipeline import CommandStatus
+from warwick.rasa.pipeline import CommandStatus
 
 SCRIPT_NAME = os.path.basename(sys.argv[0])
 sys.excepthook = Pyro4.util.excepthook
@@ -65,14 +66,8 @@ def run_command(command):
 
 def status():
     """Reports the current pipeline status"""
-    with daemons.onemetre_pipeline.connect() as pipeline:
+    with daemons.rasa_pipeline.connect() as pipeline:
         data = pipeline.report_status()
-
-    print('Autoguiding:')
-    if data['guide_camera_id'] is None:
-        print('   Guiding ' + FMT_BOLD + FMT_RED + 'DISABLED' + FMT_CLEAR)
-    else:
-        print('   Guiding on ' + FMT_BOLD + data['guide_camera_id'] + FMT_CLEAR + ' camera')
 
     print('Frame Archiving:')
     print('   Archive directory is ' + FMT_BOLD + data['archive_directory'] + FMT_CLEAR)
@@ -83,11 +78,8 @@ def status():
     else:
         print('   Frame object not written (requires SCIENCE type)')
 
-    blue = FMT_GREEN + 'ARCHIVED' if data['archive_enabled']['BLUE'] else FMT_RED + 'DISCARDED'
-    print('   Blue camera frames are ' + FMT_BOLD + blue + FMT_CLEAR)
-
-    red = FMT_GREEN + 'ARCHIVED' if data['archive_enabled']['RED'] else FMT_RED + 'DISCARDED'
-    print('   Red camera frames are ' + FMT_BOLD + red + FMT_CLEAR)
+    rasa = FMT_GREEN + 'ARCHIVED' if data['archive_enabled']['RASA'] else FMT_RED + 'DISCARDED'
+    print('   Frames are ' + FMT_BOLD + rasa + FMT_CLEAR)
 
     print('Pipeline flags:')
     wcs = FMT_GREEN + 'ENABLED' if data['wcs_enabled'] else FMT_RED + 'DISABLED'
@@ -115,11 +107,11 @@ def status():
 def dashboard(args):
     """Configure dashboard preview generation"""
     if len(args) == 1 and (args[0] == 'enable' or args[0] == 'disable'):
-        with daemons.onemetre_pipeline.connect() as pipeline:
+        with daemons.rasa_pipeline.connect() as pipeline:
             return pipeline.set_dashboard(args[0] == 'enable')
 
     elif len(args) == 2 and (args[0] == 'min' or args[0] == 'max' or args[0] == 'thumb'):
-        with daemons.onemetre_pipeline.connect() as pipeline:
+        with daemons.rasa_pipeline.connect() as pipeline:
             value = int(args[1])
             if args[0] == 'min':
                 return pipeline.set_dashboard_min_threshold(value)
@@ -142,7 +134,7 @@ def set_archive_directory(args):
             path = str(Path(args[0]).resolve())
         except Exception:
             return 50
-        with daemons.onemetre_pipeline.connect() as pipeline:
+        with daemons.rasa_pipeline.connect() as pipeline:
             return pipeline.set_archive_directory(path)
     print('usage: {} dir <output frame directory>'.format(SCRIPT_NAME))
     return -1
@@ -150,7 +142,7 @@ def set_archive_directory(args):
 def set_prefix(args):
     """Set the output frame filename prefix"""
     if len(args) == 1:
-        with daemons.onemetre_pipeline.connect() as pipeline:
+        with daemons.rasa_pipeline.connect() as pipeline:
             return pipeline.set_output_frame_prefix(args[0])
     print('usage: {} prefix <output frame prefix>'.format(SCRIPT_NAME))
     return -1
@@ -158,7 +150,7 @@ def set_prefix(args):
 def set_object(args):
     """Set the OBJECT header keyword"""
     if len(args) == 1:
-        with daemons.onemetre_pipeline.connect() as pipeline:
+        with daemons.rasa_pipeline.connect() as pipeline:
             return pipeline.set_frame_object(args[0])
     print('usage: {} object <object name>'.format(SCRIPT_NAME))
     return -1
@@ -166,26 +158,26 @@ def set_object(args):
 def set_type(args):
     """Set the IMAGETYP header keyword"""
     if len(args) == 1 and args[0] in TYPE_VALUES:
-        with daemons.onemetre_pipeline.connect() as pipeline:
+        with daemons.rasa_pipeline.connect() as pipeline:
             return pipeline.set_frame_type(TYPE_VALUES[args[0]])
     print('usage: {} type (bias|dark|flat|science|junk)'.format(SCRIPT_NAME))
     return -1
 
 def set_archive(args):
     """Enable or disable archiving of acquired frames to disk"""
-    if len(args) == 2 and (args[0] == 'blue' or args[0] == 'red') and \
+    if len(args) == 2 and (args[0] == 'rasa') and \
             (args[1] == 'enable' or args[1] == 'disable'):
-        camera_id = 'BLUE' if args[0] == 'blue' else 'RED'
-        with daemons.onemetre_pipeline.connect() as pipeline:
+        camera_id = 'RASA'
+        with daemons.rasa_pipeline.connect() as pipeline:
             return pipeline.set_archive(camera_id, args[1] == 'enable')
 
-    print('usage: {} save (blue|red) (enable|disable)'.format(SCRIPT_NAME))
+    print('usage: {} archive (rasa) (enable|disable)'.format(SCRIPT_NAME))
     return -1
 
 def set_wcs(args):
     """Enable or disable wcs solutions for acquired frames"""
     if len(args) == 1 and (args[0] == 'enable' or args[0] == 'disable'):
-        with daemons.onemetre_pipeline.connect() as pipeline:
+        with daemons.rasa_pipeline.connect() as pipeline:
             return pipeline.set_wcs(args[0] == 'enable')
 
     print('usage: {} wcs (enable|disable)'.format(SCRIPT_NAME))
@@ -194,7 +186,7 @@ def set_wcs(args):
 def set_fwhm(args):
     """Enable or disable FWHM calculation for acquired frames"""
     if len(args) == 1 and (args[0] == 'enable' or args[0] == 'disable'):
-        with daemons.onemetre_pipeline.connect() as pipeline:
+        with daemons.rasa_pipeline.connect() as pipeline:
             return pipeline.set_fwhm(args[0] == 'enable')
 
     print('usage: {} fwhm (enable|disable)'.format(SCRIPT_NAME))
@@ -203,7 +195,7 @@ def set_fwhm(args):
 def set_intensity_stats(args):
     """Enable or disable intensity statistics for acquired frames"""
     if len(args) == 1 and (args[0] == 'enable' or args[0] == 'disable'):
-        with daemons.onemetre_pipeline.connect() as pipeline:
+        with daemons.rasa_pipeline.connect() as pipeline:
             return pipeline.set_intensity_stats(args[0] == 'enable')
 
     print('usage: {} intstats (enable|disable)'.format(SCRIPT_NAME))
@@ -212,7 +204,7 @@ def set_intensity_stats(args):
 def set_compression(args):
     """Enable or disable frame gz compression"""
     if len(args) == 1 and (args[0] == 'enable' or args[0] == 'disable'):
-        with daemons.onemetre_pipeline.connect() as pipeline:
+        with daemons.rasa_pipeline.connect() as pipeline:
             return pipeline.set_compression(args[0] == 'enable')
 
     print('usage: {} compression (enable|disable)'.format(SCRIPT_NAME))
@@ -220,11 +212,11 @@ def set_compression(args):
 
 def register_preview(args):
     """Open a new ds9 preview window and register it with the server"""
-    if len(args) != 1 or (args[0] != 'blue' and args[0] != 'red'):
-        print('usage: {} preview (blue|red)'.format(SCRIPT_NAME))
+    if len(args) != 1 or (args[0] != 'rasa'):
+        print('usage: {} preview (rasa)'.format(SCRIPT_NAME))
         return -1
 
-    camera_id = 'BLUE' if args[0] == 'blue' else 'RED'
+    camera_id = 'RASA'
 
     try:
         # Generate a random name to avoid collisions
@@ -238,7 +230,7 @@ def register_preview(args):
         address = ds9.access().split(' ')[-1]
 
         # Register access for camd to update the preview
-        command = ['xpaset', '-p', name, '-acl', daemons.onemetre_pipeline.host, '+']
+        command = ['xpaset', '-p', name, '-acl', daemons.rasa_pipeline.host, '+']
         subprocess.check_call(command, timeout=5)
 
         ds9.set('view filename no')
@@ -247,30 +239,36 @@ def register_preview(args):
         ds9.set('view buttons no')
         ds9.set('view colorbar no')
         ds9.set('view layout vertical')
+        ds9.set('preserve pan yes')
+        ds9.set('preserve scale yes')
         ds9.set('scale mode zscale')
-        ds9.set('width 512')
-        ds9.set('height 572')
+        ds9.set('width 1200')
+        ds9.set('height 860')
         ds9.set('background black')
-        ds9.set('zoom 0.5')
-    except Exception:
+        ds9.set('zoom 0.125')
+        # Need to set an image before the pan command will work
+        ds9.set('array [xdim=1,ydim=1,bitpix=16]', np.array([0], dtype=np.uint16))
+        ds9.set('pan to 4088 3066 image')
+    except Exception as e:
+        print(e)
         print('error: failed to open DS9 preview window')
         return -1
 
-    with daemons.onemetre_pipeline.connect() as pipeline:
+    with daemons.rasa_pipeline.connect() as pipeline:
         return pipeline.register_preview(camera_id, address)
 
 def start_night():
     """Creates a new night directory and resets archive configuration"""
-    with daemons.onemetre_pipeline.connect() as pipeline:
+    with daemons.rasa_pipeline.connect() as pipeline:
         ret = pipeline.start_night()
         if ret != 0:
             return ret
 
-    with daemons.onemetre_tcs_diskspace.connect() as diskspace:
-        latest = diskspace.last_measurement()
-        if latest['data_fs_available_bytes'] < DISKSPACE_WARN_THRESHOLD:
-            print('warning: data partition has less than 15 GiB remaining')
-            return -1
+    #with daemons.rasa_tcs_diskspace.connect() as diskspace:
+    #    latest = diskspace.last_measurement()
+    #    if latest['data_fs_available_bytes'] < DISKSPACE_WARN_THRESHOLD:
+    #        print('warning: data partition has less than 15 GiB remaining')
+    #        return -1
 
     return 0
 

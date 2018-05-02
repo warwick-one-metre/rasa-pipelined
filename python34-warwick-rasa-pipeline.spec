@@ -12,18 +12,18 @@
 # license that conforms to the Open Source Definition (Version 1.9)
 # published by the Open Source Initiative.
 
-Name:           python34-warwick-w1m-pipeline
+Name:           python34-warwick-rasa-pipeline
 Version:        1.0.0
 Release:        0
 License:        GPL3
-Summary:        Common backend code for the Warwick one-metre telescope pipeline daemon
-Url:            https://github.com/warwick-one-metre/pipelined
+Summary:        Common backend code for the RASA prototype telescope pipeline daemon
+Url:            https://github.com/warwick-one-metre/rasa-pipelined
 BuildArch:      noarch
 
 %description
-Part of the observatory software for the Warwick one-meter telescope.
+Part of the observatory software for the RASA prototype telescope.
 
-python34-warwick-w1m-pipeline holds the common pipeline code.
+python34-warwick-rasa-pipeline holds the common pipeline code.
 
 %prep
 
