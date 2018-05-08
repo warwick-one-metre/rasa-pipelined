@@ -258,6 +258,12 @@ class PipelineDaemon:
                 print('unexpected exception when processing ' + camera_id + ' preview')
                 print(e)
 
+    def __move_bscale_bzero(self, frame):
+        """Moves the BSCALE and BZERO header keys to the start of the header
+           to be grouped with the other image keywords"""
+        frame.header.set('BSCALE', frame.header['BSCALE'], after='NAXIS2')
+        frame.header.set('BZERO', frame.header['BZERO'], after='BSCALE')
+
     def __add_telescope_header(self, frame):
         """Queries the telescope status and adds the appropriate header keys to the frame"""
         h = frame.header
@@ -610,6 +616,7 @@ class PipelineDaemon:
                         filename = self._output_frame_prefix + '-' + camera_id + '-' + \
                             date.strftime('%Y%m%d%H%M%S%f')[:-3] + ext
 
+                    self.__move_bscale_bzero(frame)
                     self.__add_telescope_header(frame)
                     self.__add_environment_header(frame)
                     self.__add_pipeline_header(camera_id, frame, filename)
