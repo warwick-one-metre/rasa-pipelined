@@ -8,7 +8,7 @@ _pipeline()
     opts="status preview archive dir prefix wcs fwhm intstats dashboard object type startnight"
     case "${prev}" in
         preview|frameno|archive)
-            opts="blue red"
+            opts="rasa"
             ;;
         wcs|fwhm|intstats|compression)
             opts="enable disable"
@@ -19,7 +19,7 @@ _pipeline()
         type)
             opts="bias dark flat science junk"
             ;;
-        blue|red)
+        rasa)
             if [ "${prevprev}" == "archive" ]; then
                 opts="enable disable"
             fi
