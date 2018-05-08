@@ -105,9 +105,10 @@ ENVIRONMENT_KEYS = [
     ('superwasp', 'sky_temp', 'SKYTEMP', '[deg c] sky temperature'),
     ('goto_vaisala', 'dew_point_delta', 'DEWDELTA', '[deg c] temperature above dew point'),
     ('tng', 'dust', 'TNGDUST', '[ug/m3] TNG Dust measurement'),
+    ('tng', 'seeing', 'TNGDIMM', '[arcsec] TNG DIMM seeing measurement'),
 ]
 
-# TODO: Include environment daemon software versions, wind direction, TNG seeing
+# TODO: Include environment daemon software versions, wind direction
 
 # This should be kept in sync with the dictionary in pipeline
 
@@ -264,12 +265,30 @@ class PipelineDaemon:
         h.append(fits.Card(None, None), end=True)
         h.append(desc, end=True)
 
+        cards = [
+            ('TELSWVER', 'tcs server software version'),
+            ('TELSTATE', 'telescope status'),
+            ('TELRA', 'telescope nominal J2000 RA'),
+            ('TELDEC', 'telescope nominal J2000 Dec'),
+            ('TELHA', 'telescope nominal HA'),
+            ('TELRAD', '[deg] telescope nominal J2000 RA'),
+            ('TELDECD', '[deg] telescope nominal J2000 Dec'),
+            ('TELHAD', '[deg] telescope nominal HA'),
+            ('ALTITUDE', '[deg] telescope altitude'),
+            ('AZIMUTH', '[deg] telescope azimuth'),
+            ('TELFOCUS', '[um] telescope nominal focus'),
+            ('SITELAT', 'telescope latitude (north)'),
+            ('SITELONG', 'telescope longitude (east)'),
+            ('SITEELEV', '[m] telescope elevation'),
+        ]
+
+        values = {}
+
         try:
             with daemons.rasa_telescope.connect(STATUS_QUERY_TIMEOUT) as teld:
                 t = teld.report_status()
-                h.append(fits.Card('TELSWVER', t['software_version'],
-                                   'tcs server software version'), end=True)
-                h.append(fits.Card('TELSTATE', t['state_label'], 'telescope status'), end=True)
+                values['TELSWVER'] = t['software_version']
+                values['TELSTATE'] = t['state_label']
                 if t['state'] != 0:
                     harad = t['lst'] - t['ra']
                     while harad > math.pi:
@@ -277,36 +296,31 @@ class PipelineDaemon:
                     while harad < -math.pi:
                         harad += 2*math.pi
 
-                    ra = helpers.sexagesimal(t['ra'] * 12 / math.pi)
-                    h.append(fits.Card('TELRA', ra, 'telescope nominal J2000 RA'), end=True)
-                    dec = helpers.sexagesimal(math.degrees(t['dec']))
-                    h.append(fits.Card('TELDEC', dec, 'telescope nominal J2000 Dec'), end=True)
-                    ha = helpers.sexagesimal(harad * 12 / math.pi)
-                    h.append(fits.Card('TELHA', ha, 'telescope nominal HA'), end=True)
-                    rad = round(math.degrees(t['ra']), 3)
-                    h.append(fits.Card('TELRAD', rad, '[deg] telescope nominal J2000 RA'), end=True)
-                    decd = round(math.degrees(t['dec']), 3)
-                    h.append(fits.Card('TELDECD', decd, '[deg] telescope nominal J2000 Dec'),
-                             end=True)
-                    had = round(math.degrees(harad), 3)
-                    h.append(fits.Card('TELHAD', had, '[deg] telescope nominal HA'), end=True)
-                    altd = round(math.degrees(t['alt']), 3)
-                    h.append(fits.Card('ALTITUDE', altd, '[deg] telescope altitude'), end=True)
-                    azd = round(math.degrees(t['az']), 3)
-                    h.append(fits.Card('AZIMUTH', azd, '[deg] telescope azimuth'), end=True)
-                    h.append(fits.Card('TELFOCUS', t['telescope_focus_um'],
-                                       '[um] telescope nominal focus'), end=True)
+                    values['TELRA'] = helpers.sexagesimal(t['ra'] * 12 / math.pi)
+                    values['TELDEC'] = helpers.sexagesimal(math.degrees(t['dec']))
+                    values['TELHA'] = helpers.sexagesimal(harad * 12 / math.pi)
+                    values['TELRAD'] = round(math.degrees(t['ra']), 3)
+                    values['TELDECD'] = round(math.degrees(t['dec']), 3)
+                    values['TELHAD'] = round(math.degrees(harad), 3)
+                    values['ALTITUDE'] = round(math.degrees(t['alt']), 3)
+                    values['AZIMUTH'] = round(math.degrees(t['az']), 3)
+                    values['TELFOCUS'] = t['telescope_focus_um']
 
                 if 'site_latitude' in t:
-                    lat = helpers.sexagesimal(math.degrees(t['site_latitude']))
-                    h.append(fits.Card('SITELAT', lat, 'telescope latitude (north)'), end=True)
-                    lon = helpers.sexagesimal(math.degrees(t['site_longitude']))
-                    h.append(fits.Card('SITELONG', lon, 'telescope longitude (east)'), end=True)
-                    elevation = round(t['site_elevation'], 1)
-                    h.append(fits.Card('SITEELEV', elevation, '[m] telescope elevation'), end=True)
+                    values['SITELAT'] = helpers.sexagesimal(math.degrees(t['site_latitude']))
+                    values['SITELONG'] = helpers.sexagesimal(math.degrees(t['site_longitude']))
+                    values['SITEELEV'] = round(t['site_elevation'], 1)
+
         except Exception as e:
             print('failed to add telescope headers with error: ' + str(e))
             log.error('pipelined', 'Failed to query telescope metadata (' + str(e) + ')')
+
+        for c in cards:
+            if c[0] in values:
+                h.append(fits.Card(c[0], values[c[0]], c[1]), end=True)
+            else:
+                h.append(fits.Card('COMMENT', ' ' + c[0] + ' not available', ''), end=True)
+
         return h
 
     def __add_environment_header(self, frame):
@@ -320,13 +334,12 @@ class PipelineDaemon:
             with daemons.rasa_environment.connect(STATUS_QUERY_TIMEOUT) as environment:
                 data = environment.status()
                 for (source, sensor, key, comment) in ENVIRONMENT_KEYS:
-                    if source not in data or sensor not in data[source]:
-                        continue
+                    if source not in data or sensor not in data[source] \
+                        or not data[source][sensor]['current']:
+                        h.append(fits.Card('COMMENT', ' ' + key + ' not available', ''), end=True)
+                    else:
+                        h.append(fits.Card(key, data[source][sensor]['latest'], comment), end=True)
 
-                    if not data[source][sensor]['current']:
-                        continue
-
-                    h.append(fits.Card(key, data[source][sensor]['latest'], comment), end=True)
         except Exception as e:
             print('failed to add environment headers with error: ' + str(e))
             log.error('pipelined', 'Failed to query environment metadata (' + str(e) + ')')
