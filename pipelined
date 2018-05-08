@@ -39,12 +39,12 @@ import subprocess
 import tempfile
 import threading
 import numpy
-import sep
 from astropy.io import fits
 import astropy.table
 import pyds9
 from PIL import Image, ImageOps
 import Pyro4
+import sep
 from warwick.observatory.common import (
     daemons,
     log,
@@ -365,7 +365,6 @@ class PipelineDaemon:
 
         except Exception as e:
             print('failed to add pipeline header with error: ' + str(e))
-            return []
 
     def __add_wcs_header(self, frame, camera_id, objects):
         """Solves frame WCS and adds the appropriate header keys to the frame.
@@ -429,6 +428,7 @@ class PipelineDaemon:
             print('failed to update wcs with error: ' + str(e))
             return [('regions', ANNOTATION_LABEL.format(width / 4, -ANNOTATION_LABEL_MARGIN,
                                                         'WCS: failed'))]
+        return []
 
     def __detect_objects(self, frame):
         """Subtracts the frame background then returns a numpy array of (x, y, flux, fwhm) for each
@@ -482,7 +482,7 @@ class PipelineDaemon:
         """Adds the median fwhm to the frame header"""
         try:
             if objects is None or len(objects) <= 0:
-                return []
+                return
 
             median = round(numpy.median(objects['FWHM']), 2)
             frame.header.append(fits.Card('MEDFWHM', median, '[arcsec] median estimated FWHM'),
@@ -505,7 +505,6 @@ class PipelineDaemon:
                                           'standard deviation of frame counts'), end=True)
         except Exception as e:
             print('failed to calculate intensity stats with error: ' + str(e))
-            return []
 
     def __generate_header_annotations(self, camera_id, frame, objects):
         """Returns the XPA commands to display the time and exposure on the live previews"""
@@ -558,9 +557,11 @@ class PipelineDaemon:
             png = Image.fromarray(scaled).convert('RGB')
             png = ImageOps.flip(png)
 
-            png.save('/mnt/dashboard-generated/dashboard-' + camera_id + '.png', 'PNG', clobber=True)
+            png.save('/mnt/dashboard-generated/dashboard-' + camera_id + '.png', 'PNG',
+                     clobber=True)
             png.thumbnail((self._dashboard_thumb_size, self._dashboard_thumb_size))
-            png.save('/mnt/dashboard-generated/dashboard-' + camera_id + '-thumb.png', 'PNG', clobber=True)
+            png.save('/mnt/dashboard-generated/dashboard-' + camera_id + '-thumb.png', 'PNG',
+                     clobber=True)
             with open('/mnt/dashboard-generated/dashboard-' + camera_id + '.json', 'w') as outfile:
                 json.dump(metadata, outfile)
         except Exception as e:
@@ -595,7 +596,9 @@ class PipelineDaemon:
                 with fits.open(loadpath) as hdulist:
                     # Take a copy of the primary HDU so that it remains
                     # available in memory after the file has been closed
+                    # pylint: disable=no-member
                     frame = fits.PrimaryHDU(hdulist[0].data, hdulist[0].header)
+                    # pylint: enable=no-member
                     print('loaded frame ' + loadpath)
 
                     steps = ['headers']
@@ -692,6 +695,8 @@ class PipelineDaemon:
             print('WARNING: ' + camera_id + ' camera blocked for ' + str(wait) + 's by pipeline')
             log.warning('pipelined', camera_id + ' camera blocked for ' + str(wait) + \
                 's by pipeline')
+
+        return CommandStatus.Succeeded
 
     @Pyro4.expose
     def set_archive_directory(self, directory):
