@@ -53,6 +53,7 @@ from warwick.observatory.common import (
     TryLock)
 from warwick.observatory.common.helpers import pyro_client_matches
 from warwick.rasa.pipeline import CommandStatus
+from warwick.rasa.focuser import FocuserStatus
 
 # Set automatically when generating RPM package
 SOFTWARE_VERSION = 'UNKNOWN'
@@ -72,6 +73,10 @@ CONTROL_IPS = [IP.RASAMain]
 NOTIFY_FRAME_IPS = [IP.RASAMain]
 
 CAMERAS = ['RASA']
+
+FOCUSERS = {
+    'RASA': 1
+}
 
 # Time limit (seconds) allowed to solve the WCS coordinates of a preview frame
 WCS_LIMIT = 4.0
@@ -280,7 +285,11 @@ class PipelineDaemon:
             ('TELHAD', '[deg] telescope nominal HA'),
             ('ALTITUDE', '[deg] telescope altitude'),
             ('AZIMUTH', '[deg] telescope azimuth'),
-            ('TELFOCUS', '[um] telescope nominal focus'),
+            ('FOCSWVER', 'focus server software version'),
+            ('FOCSTATE', 'focuser status'),
+            ('FOCTEMP', '[deg] focuser temperature'),
+            ('FOCPOS', '[steps] focuser position'),
+            ('FOCTARG', '[steps] target focuser position'),
             ('SITELAT', 'telescope latitude (north)'),
             ('SITELONG', 'telescope longitude (east)'),
             ('SITEELEV', '[m] telescope elevation'),
@@ -302,7 +311,6 @@ class PipelineDaemon:
                     values['TELHAD'] = round(math.degrees(t['ha']), 3)
                     values['ALTITUDE'] = round(math.degrees(t['alt']), 3)
                     values['AZIMUTH'] = round(math.degrees(t['az']), 3)
-                    #values['TELFOCUS'] = t['telescope_focus_um']
 
                 if 'site_latitude' in t:
                     values['SITELAT'] = helpers.sexagesimal(math.degrees(t['site_latitude']))
@@ -312,6 +320,21 @@ class PipelineDaemon:
         except Exception as e:
             print('failed to add telescope headers with error: ' + str(e))
             log.error('pipelined', 'Failed to query telescope metadata (' + str(e) + ')')
+
+        try:
+            with daemons.rasa_focus.connect(STATUS_QUERY_TIMEOUT) as focusd:
+                f = focusd.report_status()
+                values['FOCSWVER'] = f['software_version']
+
+                c = f['channels'][FOCUSERS[h['INSTRARM']]]
+                values['FOCSTATE'] = c['status_label']
+                if c['status'] >= FocuserStatus.Idle:
+                    values['FOCTEMP'] = c['temperature']
+                    values['FOCPOS'] = c['current_steps']
+                    values['FOCTARG'] = c['target_steps']
+        except Exception as e:
+            print('failed to add focuser headers with error: ' + str(e))
+            log.error('pipelined', 'Failed to query focuser metadata (' + str(e) + ')')
 
         for c in cards:
             if c[0] in values:
