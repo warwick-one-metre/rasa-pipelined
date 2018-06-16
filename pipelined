@@ -54,8 +54,6 @@ from warwick.observatory.common import (
 from warwick.observatory.common.helpers import pyro_client_matches
 from warwick.rasa.pipeline import CommandStatus
 
-daemons.observatory_log.host = '127.0.0.1'
-
 # Set automatically when generating RPM package
 SOFTWARE_VERSION = 'UNKNOWN'
 
@@ -86,10 +84,10 @@ WCS_SCALE_HIGH = 13.7
 WCS_SEARCH_RADIUS = 1.75
 
 # Unbinned arcseconds per pixel
-OBJECT_PLATESCALE = 0.391
+OBJECT_PLATESCALE = 1.66
 
 # Minimum number of pixels for considering a source for FWHM estimation
-OBJECT_MINPIX = 16
+OBJECT_MINPIX = 4
 
 # Top/bottom margin (in px) to offset the annotation labels
 ANNOTATION_LABEL_MARGIN = 90
@@ -296,21 +294,15 @@ class PipelineDaemon:
                 values['TELSWVER'] = t['software_version']
                 values['TELSTATE'] = t['state_label']
                 if t['state'] != 0:
-                    harad = t['lst'] - t['ra']
-                    while harad > math.pi:
-                        harad -= 2*math.pi
-                    while harad < -math.pi:
-                        harad += 2*math.pi
-
                     values['TELRA'] = helpers.sexagesimal(t['ra'] * 12 / math.pi)
                     values['TELDEC'] = helpers.sexagesimal(math.degrees(t['dec']))
-                    values['TELHA'] = helpers.sexagesimal(harad * 12 / math.pi)
+                    values['TELHA'] = helpers.sexagesimal(t['ha'] * 12 / math.pi)
                     values['TELRAD'] = round(math.degrees(t['ra']), 3)
                     values['TELDECD'] = round(math.degrees(t['dec']), 3)
-                    values['TELHAD'] = round(math.degrees(harad), 3)
+                    values['TELHAD'] = round(math.degrees(t['ha']), 3)
                     values['ALTITUDE'] = round(math.degrees(t['alt']), 3)
                     values['AZIMUTH'] = round(math.degrees(t['az']), 3)
-                    values['TELFOCUS'] = t['telescope_focus_um']
+                    #values['TELFOCUS'] = t['telescope_focus_um']
 
                 if 'site_latitude' in t:
                     values['SITELAT'] = helpers.sexagesimal(math.degrees(t['site_latitude']))
@@ -537,7 +529,7 @@ class PipelineDaemon:
                 'FWHM: ' + str(frame.header['MEDFWHM']) + ' arcsec')
             annotations.append(('regions', fwhm_label))
 
-        if objects:
+        if objects is not None:
             for o in objects:
                 cr = 'image; circle({},{},{}) #select=0 color=red'.format(o[0] + 1, o[1] + 1, o[3])
                 annotations.append(('regions', cr))
