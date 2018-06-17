@@ -562,19 +562,20 @@ class PipelineDaemon:
         arm = frame.header['INSTRARM']
 
         saved = 'SAVED' if self._output_save_to_disk[camera_id] else 'NOT SAVED'
-        gps = 'GPS TIMESTAMP ' + frame.header['GPS-TMST'] + ' (' + str(frame.header['GPS-SATS'])
-        gps += ' SATS ' + frame.header['GPS-FIX'] + ')'
+        gps = 'GPS TIMESTAMP ' + frame.header['GPS-TMST']
+        gps_sats = ' ({} SATS {})'.format(frame.header['GPS-SATS'], frame.header['GPS-FIX'])
         annotations = [
             ('regions', ANNOTATION_LABEL.format(width / 4, height + ANNOTATION_LABEL_MARGIN, date)),
             ('regions', ANNOTATION_LABEL.format(3 * width / 4, height + ANNOTATION_LABEL_MARGIN,
                                                 '{} @ {:.1f}s'.format(arm, exptime))),
             ('regions', ANNOTATION_LABEL.format(width / 4, -ANNOTATION_LABEL_MARGIN, gps)),
+            ('regions', ANNOTATION_LABEL.format(width / 4, -3 * ANNOTATION_LABEL_MARGIN, gps_sats)),
             ('regions', ANNOTATION_LABEL.format(3 * width / 4, -ANNOTATION_LABEL_MARGIN, saved))
         ]
 
         if 'MEDFWHM' in frame.header:
             fwhm_label = ANNOTATION_LABEL.format(
-                4 * width / 5, -ANNOTATION_LABEL_MARGIN,
+                3 * width / 4, -3 * ANNOTATION_LABEL_MARGIN,
                 'FWHM: ' + str(frame.header['MEDFWHM']) + ' arcsec')
             annotations.append(('regions', fwhm_label))
 
