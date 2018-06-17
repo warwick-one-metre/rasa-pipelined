@@ -285,14 +285,14 @@ class PipelineDaemon:
             ('TELHAD', '[deg] telescope nominal HA'),
             ('ALTITUDE', '[deg] telescope altitude'),
             ('AZIMUTH', '[deg] telescope azimuth'),
+            ('SITELAT', 'telescope latitude (north)'),
+            ('SITELONG', 'telescope longitude (east)'),
+            ('SITEELEV', '[m] telescope elevation'),
             ('FOCSWVER', 'focus server software version'),
             ('FOCSTATE', 'focuser status'),
             ('FOCTEMP', '[deg] focuser temperature'),
             ('FOCPOS', '[steps] focuser position'),
             ('FOCTARG', '[steps] target focuser position'),
-            ('SITELAT', 'telescope latitude (north)'),
-            ('SITELONG', 'telescope longitude (east)'),
-            ('SITEELEV', '[m] telescope elevation'),
         ]
 
         values = {}
