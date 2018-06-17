@@ -105,6 +105,8 @@ ENVIRONMENT_KEYS = [
     ('goto_vaisala', 'pressure', 'PRESSURE', '[hPa] air pressure'),
     ('goto_vaisala', 'wind_speed', 'WINDSPD', '[m/s] wind speed outside dome'),
     ('goto_vaisala', 'median_wind_speed', 'MEDWIND', '[m/s] median wind speed (last 20 min)'),
+    ('goto_roomalert', 'dome2_internal_temp', 'DOMETEMP', '[deg c] temperature inside dome'),
+    ('goto_roomalert', 'dome2_internal_humidity', 'DOMEHUMD', '[%] humidity inside dome'),
     ('superwasp', 'sky_temp', 'SKYTEMP', '[deg c] sky temperature'),
     ('goto_vaisala', 'dew_point_delta', 'DEWDELTA', '[deg c] temperature above dew point'),
     ('tng', 'dust', 'TNGDUST', '[ug/m3] TNG Dust measurement'),
