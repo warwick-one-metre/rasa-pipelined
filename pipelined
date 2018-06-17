@@ -102,17 +102,17 @@ ANNOTATION_LABEL_MARGIN = 90
 ANNOTATION_LABEL = 'image; text {} {} #color=green font="helvetica 12 bold" text="{}" select=0'
 
 ENVIRONMENT_KEYS = [
-    ('goto_vaisala', 'temperature', 'EXTTEMP', '[deg c] temperature outside dome'),
-    ('goto_vaisala', 'relative_humidity', 'EXTHUMD', '[%] humidity outside dome'),
-    ('goto_vaisala', 'pressure', 'PRESSURE', '[hPa] air pressure'),
-    ('goto_vaisala', 'wind_speed', 'WINDSPD', '[m/s] wind speed outside dome'),
-    ('goto_vaisala', 'median_wind_speed', 'MEDWIND', '[m/s] median wind speed (last 20 min)'),
-    ('goto_roomalert', 'dome2_internal_temp', 'DOMETEMP', '[deg c] temperature inside dome'),
-    ('goto_roomalert', 'dome2_internal_humidity', 'DOMEHUMD', '[%] humidity inside dome'),
-    ('superwasp', 'sky_temp', 'SKYTEMP', '[deg c] sky temperature'),
-    ('goto_vaisala', 'dew_point_delta', 'DEWDELTA', '[deg c] temperature above dew point'),
-    ('tng', 'dust', 'TNGDUST', '[ug/m3] TNG Dust measurement'),
-    ('tng', 'seeing', 'TNGDIMM', '[arcsec] TNG DIMM seeing measurement'),
+    ('goto_vaisala', 'temperature', 'EXTTEMP', '[deg c] temperature outside dome', 1),
+    ('goto_vaisala', 'relative_humidity', 'EXTHUMD', '[%] humidity outside dome', 1),
+    ('goto_vaisala', 'pressure', 'PRESSURE', '[hPa] air pressure', 1),
+    ('goto_vaisala', 'wind_speed', 'WINDSPD', '[m/s] wind speed outside dome', 1),
+    ('goto_vaisala', 'median_wind_speed', 'MEDWIND', '[m/s] median wind speed (last 20 min)', 1),
+    ('goto_roomalert', 'dome2_internal_temp', 'DOMETEMP', '[deg c] temperature inside dome', 1),
+    ('goto_roomalert', 'dome2_internal_humidity', 'DOMEHUMD', '[%] humidity inside dome', 1),
+    ('superwasp', 'sky_temp', 'SKYTEMP', '[deg c] sky temperature', 1),
+    ('goto_vaisala', 'dew_point_delta', 'DEWDELTA', '[deg c] temperature above dew point', 1),
+    ('tng', 'dust', 'TNGDUST', '[ug/m3] TNG Dust measurement', 1),
+    ('tng', 'seeing', 'TNGDIMM', '[arcsec] TNG DIMM seeing measurement', 2),
 ]
 
 # TODO: Include environment daemon software versions, wind direction
@@ -128,6 +128,15 @@ def rescale_image_data(data, clip_low, clip_high):
     scale = 255. / (high - low)
     data = numpy.clip(data, low, high)
     return scale * (data - low)
+
+def create_float_card(key, value, comment, places):
+    """Create a fits.Card instance with a float value
+       rounded to a specified number of significant figures
+    """
+    fmt = '{:8s}= {:.0' + str(places) + 'f}'
+    card = fits.Card.fromstring(fmt.format(key, value))
+    card.comment = comment
+    return card
 
 class PipelineDaemon:
     """Daemon interface for data pipeline"""
@@ -284,17 +293,17 @@ class PipelineDaemon:
             ('TELRA', 'telescope nominal J2000 RA'),
             ('TELDEC', 'telescope nominal J2000 Dec'),
             ('TELHA', 'telescope nominal HA'),
-            ('TELRAD', '[deg] telescope nominal J2000 RA'),
-            ('TELDECD', '[deg] telescope nominal J2000 Dec'),
-            ('TELHAD', '[deg] telescope nominal HA'),
-            ('ALTITUDE', '[deg] telescope altitude'),
-            ('AZIMUTH', '[deg] telescope azimuth'),
+            ('TELRAD', '[deg] telescope nominal J2000 RA', 3),
+            ('TELDECD', '[deg] telescope nominal J2000 Dec', 3),
+            ('TELHAD', '[deg] telescope nominal HA', 3),
+            ('ALTITUDE', '[deg] telescope altitude', 3),
+            ('AZIMUTH', '[deg] telescope azimuth', 3),
             ('SITELAT', 'telescope latitude (north)'),
             ('SITELONG', 'telescope longitude (east)'),
             ('SITEELEV', '[m] telescope elevation'),
             ('FOCSWVER', 'focus server software version'),
             ('FOCSTATE', 'focuser status'),
-            ('FOCTEMP', '[deg] focuser temperature'),
+            ('FOCTEMP', '[deg] focuser temperature', 1),
             ('FOCPOS', '[steps] focuser position'),
             ('FOCTARG', '[steps] target focuser position'),
         ]
@@ -310,16 +319,16 @@ class PipelineDaemon:
                     values['TELRA'] = helpers.sexagesimal(t['ra'] * 12 / math.pi)
                     values['TELDEC'] = helpers.sexagesimal(math.degrees(t['dec']))
                     values['TELHA'] = helpers.sexagesimal(t['ha'] * 12 / math.pi)
-                    values['TELRAD'] = round(math.degrees(t['ra']), 3)
-                    values['TELDECD'] = round(math.degrees(t['dec']), 3)
-                    values['TELHAD'] = round(math.degrees(t['ha']), 3)
-                    values['ALTITUDE'] = round(math.degrees(t['alt']), 3)
-                    values['AZIMUTH'] = round(math.degrees(t['az']), 3)
+                    values['TELRAD'] = math.degrees(t['ra'])
+                    values['TELDECD'] = math.degrees(t['dec'])
+                    values['TELHAD'] = math.degrees(t['ha'])
+                    values['ALTITUDE'] = math.degrees(t['alt'])
+                    values['AZIMUTH'] = math.degrees(t['az'])
 
                 if 'site_latitude' in t:
                     values['SITELAT'] = helpers.sexagesimal(math.degrees(t['site_latitude']))
                     values['SITELONG'] = helpers.sexagesimal(math.degrees(t['site_longitude']))
-                    values['SITEELEV'] = round(t['site_elevation'], 1)
+                    values['SITEELEV'] = int(t['site_elevation'])
 
         except Exception as e:
             print('failed to add telescope headers with error:')
@@ -344,7 +353,10 @@ class PipelineDaemon:
 
         for c in cards:
             if c[0] in values:
-                h.append(fits.Card(c[0], values[c[0]], c[1]), end=True)
+                if len(c) > 2:
+                    h.append(create_float_card(c[0], values[c[0]], c[1], c[2]), end=True)
+                else:
+                    h.append(fits.Card(c[0], values[c[0]], c[1]), end=True)
             else:
                 h.append(fits.Card('COMMENT', ' ' + c[0] + ' not available', ''), end=True)
 
@@ -360,12 +372,13 @@ class PipelineDaemon:
         try:
             with daemons.rasa_environment.connect(STATUS_QUERY_TIMEOUT) as environment:
                 data = environment.status()
-                for (source, sensor, key, comment) in ENVIRONMENT_KEYS:
+                for (source, sensor, key, comment, places) in ENVIRONMENT_KEYS:
                     if source not in data or sensor not in data[source] \
                         or not data[source][sensor]['current']:
                         h.append(fits.Card('COMMENT', ' ' + key + ' not available', ''), end=True)
                     else:
-                        h.append(fits.Card(key, data[source][sensor]['latest'], comment), end=True)
+                        h.append(create_float_card(key, data[source][sensor]['latest'],
+                                                   comment, places), end=True)
 
         except Exception as e:
             print('failed to add environment headers with error:')
@@ -516,8 +529,8 @@ class PipelineDaemon:
                 return
 
             median = round(numpy.median(objects['FWHM']), 2)
-            frame.header.append(fits.Card('MEDFWHM', median, '[arcsec] median estimated FWHM'),
-                                end=True)
+            frame.header.append(create_float_card('MEDFWHM', median,
+                                                  '[arcsec] median estimated FWHM', 1), end=True)
             frame.header.append(fits.Card('FWHMCNT', len(objects),
                                           'number of sources used to estimate FWHM'), end=True)
         except Exception:
@@ -529,12 +542,13 @@ class PipelineDaemon:
            used for the live preview overlays"""
 
         try:
-            frame.header.append(fits.Card('MEANCNTS', round(numpy.mean(frame.data), 2),
-                                          'mean frame counts'), end=True)
-            frame.header.append(fits.Card('MEDCNTS', round(numpy.median(frame.data), 2),
-                                          'median frame counts'), end=True)
-            frame.header.append(fits.Card('STDCNTS', round(numpy.std(frame.data), 2),
-                                          'standard deviation of frame counts'), end=True)
+            frame.header.append(create_float_card('MEANCNTS', numpy.mean(frame.data),
+                                                  'mean frame counts', 2), end=True)
+            frame.header.append(create_float_card('MEDCNTS', numpy.median(frame.data),
+                                                  'median frame counts', 2), end=True)
+            frame.header.append(create_float_card('STDCNTS', numpy.std(frame.data),
+                                                  'standard deviation of frame counts', 2),
+                                end=True)
         except Exception:
             print('failed to calculate intensity stats with error:')
             traceback.print_exc(file=sys.stdout)
