@@ -36,8 +36,10 @@ import queue
 import re
 import shutil
 import subprocess
+import sys
 import tempfile
 import threading
+import traceback
 import numpy
 from astropy.io import fits
 import astropy.table
@@ -193,9 +195,9 @@ class PipelineDaemon:
                 self._dashboard_min_threshold = data['dashboard_min_threshold']
                 self._dashboard_max_threshold = data['dashboard_max_threshold']
                 self._dashboard_thumb_size = data['dashboard_thumb_size']
-        except Exception as e:
-            print('failed to load pipeline config with error: ')
-            print(e)
+        except Exception:
+            print('failed to load pipeline config with error:')
+            traceback.print_exc(file=sys.stdout)
 
     def __save_config(self):
         """Update the saved config cache on disk"""
@@ -259,9 +261,9 @@ class PipelineDaemon:
                             self._ds9_preview_addresses[camera_id].remove(address)
                             self.__save_config()
                             print('{}: unregistering preview {}: {}'.format(camera_id, address, e))
-            except Exception as e:
+            except Exception:
                 print('unexpected exception when processing ' + camera_id + ' preview')
-                print(e)
+                traceback.print_exc(file=sys.stdout)
 
     def __move_bscale_bzero(self, frame):
         """Moves the BSCALE and BZERO header keys to the start of the header
@@ -320,7 +322,8 @@ class PipelineDaemon:
                     values['SITEELEV'] = round(t['site_elevation'], 1)
 
         except Exception as e:
-            print('failed to add telescope headers with error: ' + str(e))
+            print('failed to add telescope headers with error:')
+            traceback.print_exc(file=sys.stdout)
             log.error('pipelined', 'Failed to query telescope metadata (' + str(e) + ')')
 
         try:
@@ -335,7 +338,8 @@ class PipelineDaemon:
                     values['FOCPOS'] = c['current_steps']
                     values['FOCTARG'] = c['target_steps']
         except Exception as e:
-            print('failed to add focuser headers with error: ' + str(e))
+            print('failed to add focuser headers with error:')
+            traceback.print_exc(file=sys.stdout)
             log.error('pipelined', 'Failed to query focuser metadata (' + str(e) + ')')
 
         for c in cards:
@@ -364,7 +368,8 @@ class PipelineDaemon:
                         h.append(fits.Card(key, data[source][sensor]['latest'], comment), end=True)
 
         except Exception as e:
-            print('failed to add environment headers with error: ' + str(e))
+            print('failed to add environment headers with error:')
+            traceback.print_exc(file=sys.stdout)
             log.error('pipelined', 'Failed to query environment metadata (' + str(e) + ')')
         return h
 
@@ -386,8 +391,9 @@ class PipelineDaemon:
                 frame.header.append(fits.Card('OBJECT', self._frame_object,
                                               'science target name'), end=True)
 
-        except Exception as e:
-            print('failed to add pipeline header with error: ' + str(e))
+        except Exception:
+            print('failed to add pipeline header with error:')
+            traceback.print_exc(file=sys.stdout)
 
     def __add_wcs_header(self, frame, camera_id, objects):
         """Solves frame WCS and adds the appropriate header keys to the frame.
@@ -447,8 +453,9 @@ class PipelineDaemon:
                 ('regions', ANNOTATION_LABEL.format(width / 5, -ANNOTATION_LABEL_MARGIN,
                                                     'WCS: solved'))
             ]
-        except Exception as e:
-            print('failed to update wcs with error: ' + str(e))
+        except Exception:
+            print('failed to update wcs with error:')
+            traceback.print_exc(file=sys.stdout)
             return [('regions', ANNOTATION_LABEL.format(width / 4, -ANNOTATION_LABEL_MARGIN,
                                                         'WCS: failed'))]
         return []
@@ -497,8 +504,9 @@ class PipelineDaemon:
 
             dtype = [('X', float), ('Y', float), ('FLUX', float), ('FWHM', float)]
             return numpy.array(objects, dtype=dtype)
-        except Exception as e:
-            print('failed to extract objects with error: ' + str(e))
+        except Exception:
+            print('failed to extract objects with error:')
+            traceback.print_exc(file=sys.stdout)
             return numpy.zeros((0, 4))
 
     def __add_fwhm_header(self, frame, objects):
@@ -512,8 +520,9 @@ class PipelineDaemon:
                                 end=True)
             frame.header.append(fits.Card('FWHMCNT', len(objects),
                                           'number of sources used to estimate FWHM'), end=True)
-        except Exception as e:
-            print('failed to calculate fwhm with error: ' + str(e))
+        except Exception:
+            print('failed to calculate fwhm with error:')
+            traceback.print_exc(file=sys.stdout)
 
     def __add_intensity_stats_header(self, frame):
         """Estimates and the median PSF FWHM and returns a list of (x,y,r) tuples that can be
@@ -526,8 +535,9 @@ class PipelineDaemon:
                                           'median frame counts'), end=True)
             frame.header.append(fits.Card('STDCNTS', round(numpy.std(frame.data), 2),
                                           'standard deviation of frame counts'), end=True)
-        except Exception as e:
-            print('failed to calculate intensity stats with error: ' + str(e))
+        except Exception:
+            print('failed to calculate intensity stats with error:')
+            traceback.print_exc(file=sys.stdout)
 
     def __generate_header_annotations(self, camera_id, frame, objects):
         """Returns the XPA commands to display the time and exposure on the live previews"""
@@ -588,7 +598,8 @@ class PipelineDaemon:
             with open('/mnt/dashboard-generated/dashboard-' + camera_id + '.json', 'w') as outfile:
                 json.dump(metadata, outfile)
         except Exception as e:
-            print('failed to generate dashboard preview with error: ' + str(e))
+            print('failed to generate dashboard preview with error:')
+            traceback.print_exc(file=sys.stdout)
             log.error('pipelined', 'Failed to generate dashboard data (' + str(e) + ')')
 
     def __notify_opsd(self, frame):
@@ -604,7 +615,8 @@ class PipelineDaemon:
                 ops.notify_processed_frame(header)
 
         except Exception as e:
-            print('failed to notify operations daemon of completed frame with error: ' + str(e))
+            print('failed to notify operations daemon of completed frame with error:')
+            traceback.print_exc(file=sys.stdout)
             log.error('pipelined', 'Failed to notify operations daemon of completed' \
                                   ' frame (' + str(e) + ')')
 
@@ -686,8 +698,9 @@ class PipelineDaemon:
                 print('processed ' + loadpath + ' in ' + str(round(process_time, 2)) + 's (' \
                       + ', '.join(steps) + ')')
 
-            except Exception as e:
-                print('Unexpected exception while processing ' + loadpath + ': ' + str(e))
+            except Exception:
+                print('Unexpected exception while processing ' + loadpath + ':')
+                traceback.print_exc(file=sys.stdout)
             finally:
                 try:
                     os.remove(loadpath)
@@ -1011,9 +1024,9 @@ class PipelineDaemon:
             try:
                 os.makedirs(str(path))
                 self._output_directory = path
-            except Exception as e:
+            except Exception:
                 print('failed to create night dir with exception:')
-                print(e)
+                traceback.print_exc(file=sys.stdout)
                 return CommandStatus.NewDirectoryFailed
 
             self._output_frame_prefix = 'unknown'
