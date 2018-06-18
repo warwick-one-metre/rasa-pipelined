@@ -91,7 +91,7 @@ WCS_SCALE_HIGH = 13.7
 WCS_SEARCH_RADIUS = 1.75
 
 # Unbinned arcseconds per pixel
-OBJECT_PLATESCALE = 1.66
+OBJECT_PLATESCALE = 1.57
 
 # Minimum number of pixels for considering a source for FWHM estimation
 OBJECT_MINPIX = 4
