@@ -499,6 +499,13 @@ class PipelineDaemon:
                 y = star['y']
                 a = star['a']
                 b = star['b']
+
+                # HACK: Limit object detection to central region of CCD
+                # This lets us get sensible focus measurements for now
+                # at a tradeoff of WCS, which isn't working yet anyway
+                if x < 2044 or x > 6032 or y < 1533 or y > 4599:
+                    continue
+
                 theta = star['theta']
                 kronrad, flag = sep.kron_radius(subtracted, x, y, a, b, theta, 6.0)
                 if flag != 0:
@@ -516,7 +523,11 @@ class PipelineDaemon:
                 objects.append((x, y, flux, 2 * r * platescale))
 
             dtype = [('X', float), ('Y', float), ('FLUX', float), ('FWHM', float)]
-            return numpy.array(objects, dtype=dtype)
+
+            # HACK: Limit object detection to 500 brightest objects
+            # This lets us get sensible focus measurements for now
+            # at a tradeoff of WCS, which isn't working yet anyway
+            return numpy.array(sorted(objects, key=lambda o: -o[2])[:500], dtype=dtype)
         except Exception:
             print('failed to extract objects with error:')
             traceback.print_exc(file=sys.stdout)
