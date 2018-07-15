@@ -85,9 +85,9 @@ LOG_NAME = 'rasa_pipelined'
 # Time limit (seconds) allowed to solve the WCS coordinates of a preview frame
 WCS_LIMIT = 4.0
 
-# Maximum field size (arcmin)
-# Note that this needs to account for the overscan too!
-WCS_SCALE_HIGH = 13.7
+# Arcseconds per pixel
+WCS_SCALE_HIGH = 1.6
+WCS_SCALE_LOW = 1.55
 
 # Maximum tcs ra/dec error (degrees)
 WCS_SEARCH_RADIUS = 1.75
@@ -99,7 +99,7 @@ OBJECT_PLATESCALE = 1.57
 OBJECT_MINPIX = 4
 
 # Top/bottom margin (in px) to offset the annotation labels
-ANNOTATION_LABEL_MARGIN = 90
+ANNOTATION_LABEL_MARGIN = 100
 
 ANNOTATION_LABEL = 'image; text {} {} #color=green font="helvetica 12 bold" text="{}" select=0'
 
@@ -439,8 +439,8 @@ class PipelineDaemon:
                 '--overwrite', '--no-plots',
                 '--axy', 'none', '--rdls', 'none', '--match', 'none',
                 '--corr', 'none', '--solved', 'none',
-                '--scale-units', 'arcminwidth', '--scale-high', str(WCS_SCALE_HIGH),
-                '--width', str(width), '--height', str(height),
+                '--scale-units', 'arcsecperpix', '--scale-high', str(WCS_SCALE_HIGH),
+                '--scale-low', str(WCS_SCALE_LOW), '--width', str(width), '--height', str(height),
                 '--ra', frame.header['TELRA'], '--dec', frame.header['TELDEC'],
                 '--radius', str(WCS_SEARCH_RADIUS), table_path]
 
@@ -465,14 +465,14 @@ class PipelineDaemon:
                         frame.header.append(fits.Card(card.keyword, card.value, comment), end=True)
             return [
                 ('wcs replace', wcs_data),
-                ('regions', ANNOTATION_LABEL.format(width / 5, -ANNOTATION_LABEL_MARGIN,
-                                                    'WCS: solved'))
+                ('regions', ANNOTATION_LABEL.format(3 * width / 4, -5 * ANNOTATION_LABEL_MARGIN,
+                                                    'WCS: SOLVED'))
             ]
         except Exception:
             print('failed to update wcs with error:')
             traceback.print_exc(file=sys.stdout)
             return [('regions', ANNOTATION_LABEL.format(width / 4, -ANNOTATION_LABEL_MARGIN,
-                                                        'WCS: failed'))]
+                                                        'WCS: FAILED'))]
         return []
 
     def __detect_objects(self, frame):
