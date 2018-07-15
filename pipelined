@@ -80,6 +80,8 @@ FOCUSERS = {
     'RASA': 1
 }
 
+LOG_NAME = 'rasa_pipelined'
+
 # Time limit (seconds) allowed to solve the WCS coordinates of a preview frame
 WCS_LIMIT = 4.0
 
@@ -333,7 +335,7 @@ class PipelineDaemon:
         except Exception as e:
             print('failed to add telescope headers with error:')
             traceback.print_exc(file=sys.stdout)
-            log.error('pipelined', 'Failed to query telescope metadata (' + str(e) + ')')
+            log.error(LOG_NAME, 'Failed to query telescope metadata (' + str(e) + ')')
 
         try:
             with daemons.rasa_focus.connect(STATUS_QUERY_TIMEOUT) as focusd:
@@ -349,7 +351,7 @@ class PipelineDaemon:
         except Exception as e:
             print('failed to add focuser headers with error:')
             traceback.print_exc(file=sys.stdout)
-            log.error('pipelined', 'Failed to query focuser metadata (' + str(e) + ')')
+            log.error(LOG_NAME, 'Failed to query focuser metadata (' + str(e) + ')')
 
         for c in cards:
             if c[0] in values:
@@ -383,7 +385,7 @@ class PipelineDaemon:
         except Exception as e:
             print('failed to add environment headers with error:')
             traceback.print_exc(file=sys.stdout)
-            log.error('pipelined', 'Failed to query environment metadata (' + str(e) + ')')
+            log.error(LOG_NAME, 'Failed to query environment metadata (' + str(e) + ')')
         return h
 
     def __add_pipeline_header(self, camera_id, frame, filename):
@@ -626,7 +628,7 @@ class PipelineDaemon:
         except Exception as e:
             print('failed to generate dashboard preview with error:')
             traceback.print_exc(file=sys.stdout)
-            log.error('pipelined', 'Failed to generate dashboard data (' + str(e) + ')')
+            log.error(LOG_NAME, 'Failed to generate dashboard data (' + str(e) + ')')
 
     def __notify_opsd(self, frame):
         try:
@@ -643,8 +645,8 @@ class PipelineDaemon:
         except Exception as e:
             print('failed to notify operations daemon of completed frame with error:')
             traceback.print_exc(file=sys.stdout)
-            log.error('pipelined', 'Failed to notify operations daemon of completed' \
-                                  ' frame (' + str(e) + ')')
+            log.error(LOG_NAME, 'Failed to notify operations daemon of completed' \
+                                ' frame (' + str(e) + ')')
 
     def __process_frames(self, camera_id):
         process_queue = self._process_queue[camera_id]
@@ -711,7 +713,7 @@ class PipelineDaemon:
                         shutil.move(tmppath, savepath)
 
                         print('Saved frame ' + filename)
-                        log.info('pipelined', 'Saved frame ' + filename)
+                        log.info(LOG_NAME, 'Saved frame ' + filename)
                         steps.append('compress' if self._compression_enabled else 'save')
                         self.__save_config()
 
@@ -756,8 +758,7 @@ class PipelineDaemon:
 
         if wait > 0.1:
             print('WARNING: ' + camera_id + ' camera blocked for ' + str(wait) + 's by pipeline')
-            log.warning('pipelined', camera_id + ' camera blocked for ' + str(wait) + \
-                's by pipeline')
+            log.warning(LOG_NAME, camera_id + ' camera blocked for ' + str(wait) + 's by pipeline')
 
         return CommandStatus.Succeeded
 
@@ -780,7 +781,7 @@ class PipelineDaemon:
             except Exception:
                 return CommandStatus.DirectoryNotWritable
 
-            log.info('pipelined', 'Frame archive directory set to ' + str(path))
+            log.info(LOG_NAME, 'Frame archive directory set to ' + str(path))
             self.__save_config()
             return CommandStatus.Succeeded
 
@@ -796,7 +797,7 @@ class PipelineDaemon:
 
             self._output_frame_prefix = prefix
 
-            log.info('pipelined', 'Frame prefix set to ' + prefix)
+            log.info(LOG_NAME, 'Frame prefix set to ' + prefix)
             self.__save_config()
             return CommandStatus.Succeeded
 
@@ -811,8 +812,8 @@ class PipelineDaemon:
                 return CommandStatus.Blocked
 
             self._output_save_to_disk[camera_id] = enabled
-            log.info('pipelined', 'Frame archiving for ' + camera_id \
-                                 + (' enabled' if enabled else ' disabled'))
+            log.info(LOG_NAME, 'Frame archiving for ' + camera_id \
+                             + (' enabled' if enabled else ' disabled'))
             self.__save_config()
             return CommandStatus.Succeeded
 
@@ -842,7 +843,7 @@ class PipelineDaemon:
 
             self._frame_object = object_name
 
-            log.info('pipelined', 'Frame object set to ' + object_name)
+            log.info(LOG_NAME, 'Frame object set to ' + object_name)
             self.__save_config()
             return CommandStatus.Succeeded
 
@@ -858,7 +859,7 @@ class PipelineDaemon:
 
             self._frame_type = frame_type
 
-            log.info('pipelined', 'Frame type set to ' + frame_type)
+            log.info(LOG_NAME, 'Frame type set to ' + frame_type)
             self.__save_config()
             return CommandStatus.Succeeded
 
@@ -869,7 +870,7 @@ class PipelineDaemon:
             return CommandStatus.InvalidControlIP
 
         self._dashboard_min_threshold = percent
-        log.info('pipelined', 'Dashboard preview min threshold set to ' + str(percent) + '%')
+        log.info(LOG_NAME, 'Dashboard preview min threshold set to ' + str(percent) + '%')
         self.__save_config()
         return CommandStatus.Succeeded
 
@@ -880,7 +881,7 @@ class PipelineDaemon:
             return CommandStatus.InvalidControlIP
 
         self._dashboard_max_threshold = percent
-        log.info('pipelined', 'Dashboard preview min threshold set to ' + str(percent) + '%')
+        log.info(LOG_NAME, 'Dashboard preview min threshold set to ' + str(percent) + '%')
         self.__save_config()
         return CommandStatus.Succeeded
 
@@ -891,7 +892,7 @@ class PipelineDaemon:
             return CommandStatus.InvalidControlIP
 
         self._dashboard_thumb_size = max_size
-        log.info('pipelined', 'Dashboard preview thumbnail size set to ' + str(max_size) + ' px')
+        log.info(LOG_NAME, 'Dashboard preview thumbnail size set to ' + str(max_size) + ' px')
         self.__save_config()
         return CommandStatus.Succeeded
 
@@ -906,7 +907,7 @@ class PipelineDaemon:
                 return CommandStatus.Blocked
 
             self._wcs_enabled = enabled
-            log.info('pipelined', 'WCS solution ' + ('enabled' if enabled else 'disabled'))
+            log.info(LOG_NAME, 'WCS solution ' + ('enabled' if enabled else 'disabled'))
             self.__save_config()
             return CommandStatus.Succeeded
 
@@ -921,7 +922,7 @@ class PipelineDaemon:
                 return CommandStatus.Blocked
 
             self._fwhm_enabled = enabled
-            log.info('pipelined', 'FWHM calculation ' + ('enabled' if enabled else 'disabled'))
+            log.info(LOG_NAME, 'FWHM calculation ' + ('enabled' if enabled else 'disabled'))
             self.__save_config()
             return CommandStatus.Succeeded
 
@@ -936,7 +937,7 @@ class PipelineDaemon:
                 return CommandStatus.Blocked
 
             self._intensity_stats_enabled = enabled
-            log.info('pipelined', 'Intensity statistics ' + ('enabled' if enabled else 'disabled'))
+            log.info(LOG_NAME, 'Intensity statistics ' + ('enabled' if enabled else 'disabled'))
             self.__save_config()
             return CommandStatus.Succeeded
 
@@ -951,7 +952,7 @@ class PipelineDaemon:
                 return CommandStatus.Blocked
 
             self._dashboard_enabled = enabled
-            log.info('pipelined', 'Dashboard updates ' + ('enabled' if enabled else 'disabled'))
+            log.info(LOG_NAME, 'Dashboard updates ' + ('enabled' if enabled else 'disabled'))
             self.__save_config()
             return CommandStatus.Succeeded
 
@@ -966,7 +967,7 @@ class PipelineDaemon:
                 return CommandStatus.Blocked
 
             self._compression_enabled = enabled
-            log.info('pipelined', 'Frame compression ' + ('enabled' if enabled else 'disabled'))
+            log.info(LOG_NAME, 'Frame compression ' + ('enabled' if enabled else 'disabled'))
             self.__save_config()
             return CommandStatus.Succeeded
 
@@ -1000,36 +1001,36 @@ class PipelineDaemon:
             except Exception:
                 return CommandStatus.DirectoryNotWritable
 
-            log.info('pipelined', 'Frame archive directory set to ' + str(path))
+            log.info(LOG_NAME, 'Frame archive directory set to ' + str(path))
 
             self._output_frame_prefix = params.get('prefix', 'unknown')
-            log.info('pipelined', 'Frame prefix set to ' + self._output_frame_prefix)
+            log.info(LOG_NAME, 'Frame prefix set to ' + self._output_frame_prefix)
 
             self._frame_type = params.get('type', 'JUNK')
-            log.info('pipelined', 'Frame type set to ' + self._frame_type)
+            log.info(LOG_NAME, 'Frame type set to ' + self._frame_type)
 
             self._frame_object = params.get('object', '')
-            log.info('pipelined', 'Frame object set to ' + self._frame_object)
+            log.info(LOG_NAME, 'Frame object set to ' + self._frame_object)
 
             for k, v in params.get('archive', {c: False for c in CAMERAS}).items():
                 self._output_save_to_disk[k] = v
-                log.info('pipelined', 'Frame archiving for ' + k + \
+                log.info(LOG_NAME, 'Frame archiving for ' + k + \
                     (' enabled' if v else ' disabled'))
 
             self._wcs_enabled = params.get('wcs', False)
-            log.info('pipelined', 'WCS solution ' + \
+            log.info(LOG_NAME, 'WCS solution ' + \
                 ('enabled' if self._wcs_enabled else 'disabled'))
 
             self._intensity_stats_enabled = params.get('intstats', False)
-            log.info('pipelined', 'Intensity statistics ' + \
+            log.info(LOG_NAME, 'Intensity statistics ' + \
                 ('enabled' if self._intensity_stats_enabled else 'disabled'))
 
             self._fwhm_enabled = params.get('fwhm', False)
-            log.info('pipelined', 'FWHM calculation ' + \
+            log.info(LOG_NAME, 'FWHM calculation ' + \
                 ('enabled' if self._fwhm_enabled else 'disabled'))
 
             self._compression_enabled = params.get('compression', False)
-            log.info('pipelined', 'Frame compression ' + \
+            log.info(LOG_NAME, 'Frame compression ' + \
                 ('enabled' if self._compression_enabled else 'disabled'))
 
             self.__save_config()
@@ -1064,7 +1065,7 @@ class PipelineDaemon:
             self._compression_enabled = False
             self.__save_config()
 
-            log.info('pipelined', 'Started new night ' + night)
+            log.info(LOG_NAME, 'Started new night ' + night)
             return CommandStatus.Succeeded
 
     @Pyro4.expose
