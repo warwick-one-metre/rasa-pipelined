@@ -179,7 +179,12 @@ class PipelineDaemon:
         # Min and max percentage thresholds to use for the preview pngs
         self._dashboard_min_threshold = 5
         self._dashboard_max_threshold = 95
-        self._dashboard_thumb_size = 512
+        self._dashboard_thumb_size = 1024
+
+        self._dashboard_clip_x1 = (8192 - 512) / 2
+        self._dashboard_clip_x2 = self._dashboard_clip_x1 + 512
+        self._dashboard_clip_y1 = (6132 - 256) / 2
+        self._dashboard_clip_y2 = self._dashboard_clip_y1 + 256
 
         try:
             with open(CONFIG_PATH, 'r') as infile:
@@ -206,6 +211,12 @@ class PipelineDaemon:
                 self._dashboard_min_threshold = data['dashboard_min_threshold']
                 self._dashboard_max_threshold = data['dashboard_max_threshold']
                 self._dashboard_thumb_size = data['dashboard_thumb_size']
+
+                self._dashboard_clip_x1 = data['dashboard_clip_x1']
+                self._dashboard_clip_x2 = data['dashboard_clip_x2']
+                self._dashboard_clip_y1 = data['dashboard_clip_y1']
+                self._dashboard_clip_y2 = data['dashboard_clip_y2']
+
         except Exception:
             print('failed to load pipeline config with error:')
             traceback.print_exc(file=sys.stdout)
@@ -229,6 +240,11 @@ class PipelineDaemon:
                 'dashboard_min_threshold': self._dashboard_min_threshold,
                 'dashboard_max_threshold': self._dashboard_max_threshold,
                 'dashboard_thumb_size': self._dashboard_thumb_size,
+
+                'dashboard_clip_x1': self._dashboard_clip_x1,
+                'dashboard_clip_x2': self._dashboard_clip_x2,
+                'dashboard_clip_y1': self._dashboard_clip_y1,
+                'dashboard_clip_y2': self._dashboard_clip_y2,
             }
 
             for cam in CAMERAS:
@@ -604,13 +620,20 @@ class PipelineDaemon:
             r = re.search(r'^\[(\d+):(\d+),(\d+):(\d+)\]$', frame.header['IMAG-RGN']).groups()
             data = frame.data[int(r[2])-1:int(r[3]), int(r[0])-1:int(r[1])]
 
+            obj = frame.header['IMAGETYP']
+            if frame.header['IMAGETYP'] == 'SCIENCE' and frame.header['OBJECT']:
+                obj = frame.header['OBJECT']
+
             fwhm = -1 if 'MEDFWHM' not in frame.header else frame.header['MEDFWHM']
+            medcnts = -1 if 'MEDCNTS' not in frame.header else frame.header['MEDCNTS']
             metadata = {
+                'object': obj,
                 'date': frame.header['DATE-OBS'],
                 'exptime': frame.header['EXPTIME'],
                 'saved': frame.header['FILESAVE'],
                 'filename': frame.header['FILENAME'],
-                'fwhm': fwhm
+                'fwhm': fwhm,
+                'medcnts': medcnts
             }
 
             scaled = rescale_image_data(data, self._dashboard_min_threshold,
@@ -618,11 +641,20 @@ class PipelineDaemon:
             png = Image.fromarray(scaled).convert('RGB')
             png = ImageOps.flip(png)
 
-            png.save('/mnt/dashboard-generated/dashboard-' + camera_id + '.png', 'PNG',
-                     clobber=True)
             png.thumbnail((self._dashboard_thumb_size, self._dashboard_thumb_size))
-            png.save('/mnt/dashboard-generated/dashboard-' + camera_id + '-thumb.png', 'PNG',
-                     clobber=True)
+            png.save('/mnt/dashboard-generated/dashboard-' + camera_id + '-thumb.jpg', 'JPEG',
+                     quality=80, optimize=True, progressive=True, clobber=True)
+
+            clipped = data[self._dashboard_clip_y1:self._dashboard_clip_y2,
+                           self._dashboard_clip_x1:self._dashboard_clip_x2]
+
+            scaled = rescale_image_data(clipped, self._dashboard_min_threshold,
+                                        self._dashboard_max_threshold)
+            png = Image.fromarray(scaled).convert('RGB')
+            png = ImageOps.flip(png)
+            png.save('/mnt/dashboard-generated/dashboard-' + camera_id + '-clip.jpg', 'JPEG',
+                     quality=80, optimize=True, progressive=True, clobber=True)
+
             with open('/mnt/dashboard-generated/dashboard-' + camera_id + '.json', 'w') as outfile:
                 json.dump(metadata, outfile)
         except Exception as e:
@@ -893,6 +925,21 @@ class PipelineDaemon:
 
         self._dashboard_thumb_size = max_size
         log.info(LOG_NAME, 'Dashboard preview thumbnail size set to ' + str(max_size) + ' px')
+        self.__save_config()
+        return CommandStatus.Succeeded
+
+    @Pyro4.expose
+    def set_dashboard_clip_region(self, x1, x2, y1, y2):
+        """Sets the maximum dimension of the web dashboard preview thumbnails"""
+        if not pyro_client_matches(CONTROL_IPS):
+            return CommandStatus.InvalidControlIP
+
+        self._dashboard_clip_x1 = x1
+        self._dashboard_clip_x2 = x2
+        self._dashboard_clip_y1 = y1
+        self._dashboard_clip_y2 = y2
+        log.info(LOG_NAME, 'Dashboard preview clip region set to {0}:{1}, {2}:{3}'.format(
+            x1, x2, y1, y2))
         self.__save_config()
         return CommandStatus.Succeeded
 

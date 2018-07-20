@@ -1,5 +1,5 @@
 Name:      rasa-pipeline-server
-Version:   2.2.9
+Version:   2.2.10
 Release:   0
 Url:       https://github.com/warwick-one-metre/rasa-pipelined
 Summary:   Data pipeline server for the RASA prototype telescope.
