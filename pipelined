@@ -334,12 +334,18 @@ class PipelineDaemon:
                 values['TELSWVER'] = t['software_version']
                 values['TELSTATE'] = t['state_label']
                 if t['state'] != 0:
+                    harad = t['lst'] - t['ra']
+                    while harad > math.pi:
+                        harad -= 2*math.pi
+                    while harad < -math.pi:
+                        harad += 2*math.pi
+
                     values['TELRA'] = helpers.sexagesimal(t['ra'] * 12 / math.pi)
                     values['TELDEC'] = helpers.sexagesimal(math.degrees(t['dec']))
-                    values['TELHA'] = helpers.sexagesimal(t['ha'] * 12 / math.pi)
+                    values['TELHA'] = helpers.sexagesimal(harad * 12 / math.pi)
                     values['TELRAD'] = math.degrees(t['ra'])
                     values['TELDECD'] = math.degrees(t['dec'])
-                    values['TELHAD'] = math.degrees(t['ha'])
+                    values['TELHAD'] = math.degrees(harad)
                     values['ALTITUDE'] = math.degrees(t['alt'])
                     values['AZIMUTH'] = math.degrees(t['az'])
 
