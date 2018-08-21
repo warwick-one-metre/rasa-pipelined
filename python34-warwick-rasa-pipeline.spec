@@ -13,7 +13,7 @@
 # published by the Open Source Initiative.
 
 Name:           python34-warwick-rasa-pipeline
-Version:        1.0.0
+Version:        1.0.1
 Release:        0
 License:        GPL3
 Summary:        Common backend code for the RASA prototype telescope pipeline daemon

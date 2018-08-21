@@ -68,7 +68,7 @@ def configure_standard_validation_schema():
             'intstats': {
                 'type': 'boolean'
             },
-            'fwhm': {
+            'hfd': {
                 'type': 'boolean'
             },
             'compression': {

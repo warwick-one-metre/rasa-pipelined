@@ -95,7 +95,7 @@ WCS_SEARCH_RADIUS = 1.75
 # Unbinned arcseconds per pixel
 OBJECT_PLATESCALE = 1.57
 
-# Minimum number of pixels for considering a source for FWHM estimation
+# Minimum number of pixels for considering a source for HFD estimation
 OBJECT_MINPIX = 4
 
 # Top/bottom margin (in px) to offset the annotation labels
@@ -158,7 +158,7 @@ class PipelineDaemon:
         preview_thread.start()
 
         self._wcs_enabled = False
-        self._fwhm_enabled = False
+        self._hfd_enabled = False
         self._intensity_stats_enabled = False
         self._dashboard_enabled = True
         self._compression_enabled = False
@@ -191,7 +191,7 @@ class PipelineDaemon:
                 data = json.load(infile)
 
                 self._wcs_enabled = data['wcs_enabled']
-                self._fwhm_enabled = data['fwhm_enabled']
+                self._hfd_enabled = data['hfd_enabled']
                 self._intensity_stats_enabled = data['intensity_stats_enabled']
                 self._dashboard_enabled = data['dashboard_enabled']
                 self._compression_enabled = data['compression_enabled']
@@ -226,7 +226,7 @@ class PipelineDaemon:
         with open(CONFIG_PATH, 'w') as outfile:
             data = {
                 'wcs_enabled': self._wcs_enabled,
-                'fwhm_enabled': self._fwhm_enabled,
+                'hfd_enabled': self._hfd_enabled,
                 'intensity_stats_enabled': self._intensity_stats_enabled,
                 'dashboard_enabled': self._dashboard_enabled,
                 'compression_enabled': self._compression_enabled,
@@ -498,7 +498,7 @@ class PipelineDaemon:
         return []
 
     def __detect_objects(self, frame):
-        """Subtracts the frame background then returns a numpy array of (x, y, flux, fwhm) for each
+        """Subtracts the frame background then returns a numpy array of (x, y, flux, hfd) for each
            object detected by sep"""
         try:
             if frame.header['SHUTTER'] == 'CLOSED':
@@ -546,7 +546,7 @@ class PipelineDaemon:
 
                 objects.append((x, y, flux, 2 * r * platescale))
 
-            dtype = [('X', float), ('Y', float), ('FLUX', float), ('FWHM', float)]
+            dtype = [('X', float), ('Y', float), ('FLUX', float), ('HFD', float)]
 
             # HACK: Limit object detection to 500 brightest objects
             # This lets us get sensible focus measurements for now
@@ -557,24 +557,23 @@ class PipelineDaemon:
             traceback.print_exc(file=sys.stdout)
             return numpy.zeros((0, 4))
 
-    def __add_fwhm_header(self, frame, objects):
-        """Adds the median fwhm to the frame header"""
+    def __add_hfd_header(self, frame, objects):
+        """Adds the median half-flux diameter to the frame header"""
         try:
             if objects is None or len(objects) <= 0:
                 return
 
-            median = round(numpy.median(objects['FWHM']), 2)
-            frame.header.append(create_float_card('MEDFWHM', median,
-                                                  '[arcsec] median estimated FWHM', 1), end=True)
-            frame.header.append(fits.Card('FWHMCNT', len(objects),
-                                          'number of sources used to estimate FWHM'), end=True)
+            median = round(numpy.median(objects['HFD']), 2)
+            frame.header.append(create_float_card('MEDHFD', median,
+                                                  '[arcsec] median estimated half-flux diameter', 1), end=True)
+            frame.header.append(fits.Card('HFDCNT', len(objects),
+                                          'number of sources used to estimate the HFD'), end=True)
         except Exception:
-            print('failed to calculate fwhm with error:')
+            print('failed to calculate HFD with error:')
             traceback.print_exc(file=sys.stdout)
 
     def __add_intensity_stats_header(self, frame):
-        """Estimates and the median PSF FWHM and returns a list of (x,y,r) tuples that can be
-           used for the live preview overlays"""
+        """Adds the frame intensity to the frame header"""
 
         try:
             frame.header.append(create_float_card('MEANCNTS', numpy.mean(frame.data),
@@ -608,11 +607,11 @@ class PipelineDaemon:
             ('regions', ANNOTATION_LABEL.format(3 * width / 4, -ANNOTATION_LABEL_MARGIN, saved))
         ]
 
-        if 'MEDFWHM' in frame.header:
-            fwhm_label = ANNOTATION_LABEL.format(
+        if 'MEDHFD' in frame.header:
+            hfd_label = ANNOTATION_LABEL.format(
                 3 * width / 4, -3 * ANNOTATION_LABEL_MARGIN,
-                'FWHM: ' + str(frame.header['MEDFWHM']) + ' arcsec')
-            annotations.append(('regions', fwhm_label))
+                'HFD: ' + str(frame.header['MEDHFD']) + ' arcsec')
+            annotations.append(('regions', hfd_label))
 
         if objects is not None:
             for o in objects:
@@ -630,7 +629,7 @@ class PipelineDaemon:
             if frame.header['IMAGETYP'] == 'SCIENCE' and frame.header['OBJECT']:
                 obj = frame.header['OBJECT']
 
-            fwhm = -1 if 'MEDFWHM' not in frame.header else frame.header['MEDFWHM']
+            hfd = -1 if 'MEDHFD' not in frame.header else frame.header['MEDHFD']
             medcnts = -1 if 'MEDCNTS' not in frame.header else frame.header['MEDCNTS']
             metadata = {
                 'object': obj,
@@ -638,7 +637,7 @@ class PipelineDaemon:
                 'exptime': frame.header['EXPTIME'],
                 'saved': frame.header['FILESAVE'],
                 'filename': frame.header['FILENAME'],
-                'fwhm': fwhm,
+                'hfd': hfd,
                 'medcnts': medcnts
             }
 
@@ -721,13 +720,13 @@ class PipelineDaemon:
                         steps.append('intstats')
 
                     objects = None
-                    if self._fwhm_enabled or self._wcs_enabled:
+                    if self._hfd_enabled or self._wcs_enabled:
                         objects = self.__detect_objects(frame)
                         steps.append('objdetect')
 
-                    if self._fwhm_enabled:
-                        self.__add_fwhm_header(frame, objects)
-                        steps.append('fwhm')
+                    if self._hfd_enabled:
+                        self.__add_hfd_header(frame, objects)
+                        steps.append('hfd')
 
                     # Update previews before the relatively-slow WCS step
                     annotations = self.__generate_header_annotations(camera_id, frame, objects)
@@ -965,8 +964,8 @@ class PipelineDaemon:
             return CommandStatus.Succeeded
 
     @Pyro4.expose
-    def set_fwhm(self, enabled):
-        """Enable or disable fwhm calculations"""
+    def set_hfd(self, enabled):
+        """Enable or disable half-flux diameter calculations"""
         if not pyro_client_matches(CONTROL_IPS):
             return CommandStatus.InvalidControlIP
 
@@ -974,8 +973,8 @@ class PipelineDaemon:
             if not success:
                 return CommandStatus.Blocked
 
-            self._fwhm_enabled = enabled
-            log.info(LOG_NAME, 'FWHM calculation ' + ('enabled' if enabled else 'disabled'))
+            self._hfd_enabled = enabled
+            log.info(LOG_NAME, 'HFD calculation ' + ('enabled' if enabled else 'disabled'))
             self.__save_config()
             return CommandStatus.Succeeded
 
@@ -1035,7 +1034,7 @@ class PipelineDaemon:
               archive: Dictionary of instrument arm to bool for which images to archive
               wcs: Attempt to solve WCS coordinates (True/False)
               intstats: Calculate basic intensity statistics (True/False)
-              fwhm: Calculate median FWHM from objects in the image (True/False)
+              hfd: Calculate median half-flux diameters from objects in the image (True/False)
               compression: Save frames with gz compression (True/False)
            Any properties not specified in params will be reset to its default
         """
@@ -1078,9 +1077,9 @@ class PipelineDaemon:
             log.info(LOG_NAME, 'Intensity statistics ' + \
                 ('enabled' if self._intensity_stats_enabled else 'disabled'))
 
-            self._fwhm_enabled = params.get('fwhm', False)
-            log.info(LOG_NAME, 'FWHM calculation ' + \
-                ('enabled' if self._fwhm_enabled else 'disabled'))
+            self._hfd_enabled = params.get('hfd', False)
+            log.info(LOG_NAME, 'HFD calculation ' + \
+                ('enabled' if self._hfd_enabled else 'disabled'))
 
             self._compression_enabled = params.get('compression', False)
             log.info(LOG_NAME, 'Frame compression ' + \
@@ -1126,7 +1125,7 @@ class PipelineDaemon:
         """Returns a dictionary containing the current pipeline state"""
         return {
             'wcs_enabled': self._wcs_enabled,
-            'fwhm_enabled': self._fwhm_enabled,
+            'hfd_enabled': self._hfd_enabled,
             'intensity_stats_enabled': self._intensity_stats_enabled,
             'dashboard_enabled': self._dashboard_enabled,
             'compression_enabled': self._compression_enabled,
