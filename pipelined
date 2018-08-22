@@ -530,21 +530,26 @@ class PipelineDaemon:
                 if x < 2044 or x > 6032 or y < 1533 or y > 4599:
                     continue
 
-                theta = star['theta']
-                kronrad, flag = sep.kron_radius(subtracted, x, y, a, b, theta, 6.0)
-                if flag != 0:
-                    continue
+                try:
+                    theta = star['theta']
+                    kronrad, flag = sep.kron_radius(subtracted, x, y, a, b, theta, 6.0)
+                    if flag != 0:
+                        continue
 
-                flux, _, flag = sep.sum_ellipse(subtracted, x, y, a, b, theta, 2.5 * kronrad,
-                                                subpix=0)
-                if flag != 0:
-                    continue
+                    flux, _, flag = sep.sum_ellipse(subtracted, x, y, a, b, theta, 2.5 * kronrad,
+                                                    subpix=0)
+                    if flag != 0:
+                        continue
 
-                r, flag = sep.flux_radius(subtracted, x, y, 6.0 * a, 0.5, normflux=flux, subpix=5)
-                if flag != 0:
-                    continue
+                    r, flag = sep.flux_radius(subtracted, x, y, 6.0 * a, 0.5,
+                                              normflux=flux, subpix=5)
+                    if flag != 0:
+                        continue
 
-                objects.append((x, y, flux, 2 * r * platescale))
+                    objects.append((x, y, flux, 2 * r * platescale))
+                except:
+                    # Ignore errors in individual objects
+                    pass
 
             dtype = [('X', float), ('Y', float), ('FLUX', float), ('HFD', float)]
 
