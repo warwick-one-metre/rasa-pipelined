@@ -102,6 +102,8 @@ def status():
           FMT_CLEAR + ' - ' + FMT_BOLD + str(data['dashboard_max_threshold']) + FMT_CLEAR + '%')
     print('   Thumbnail size: ' + FMT_BOLD + str(data['dashboard_thumb_size']) + \
           FMT_CLEAR + ' px')
+    print('   Clip size: ' + FMT_BOLD + str(data['dashboard_clip_size']) + \
+          FMT_CLEAR + ' px')
     return 0
 
 def dashboard(args):
@@ -110,7 +112,7 @@ def dashboard(args):
         with daemons.rasa_pipeline.connect() as pipeline:
             return pipeline.set_dashboard(args[0] == 'enable')
 
-    elif len(args) == 2 and (args[0] == 'min' or args[0] == 'max' or args[0] == 'thumb'):
+    elif len(args) == 2 and args[0] in ['min', 'max', 'thumb', 'clip']:
         with daemons.rasa_pipeline.connect() as pipeline:
             value = int(args[1])
             if args[0] == 'min':
@@ -119,11 +121,13 @@ def dashboard(args):
                 return pipeline.set_dashboard_max_threshold(value)
             if args[0] == 'thumb':
                 return pipeline.set_dashboard_thumb_size(value)
+            if args[0] == 'clip':
+                return pipeline.set_dashboard_clip_size(value)
 
     if not args:
-        print('usage: {} dashboard [enable|disable|min|max|thumb]'.format(SCRIPT_NAME))
+        print('usage: {} dashboard [enable|disable|min|max|thumb|clip]'.format(SCRIPT_NAME))
     else:
-        print('usage: {} dashboard [min|max|thumb] <value>'.format(SCRIPT_NAME))
+        print('usage: {} dashboard [min|max|thumb|clip] <value>'.format(SCRIPT_NAME))
     return -1
 
 def set_archive_directory(args):
