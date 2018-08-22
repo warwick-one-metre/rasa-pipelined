@@ -532,12 +532,6 @@ class PipelineDaemon:
                 a = star['a']
                 b = star['b']
 
-                # HACK: Limit object detection to central region of CCD
-                # This lets us get sensible focus measurements for now
-                # at a tradeoff of WCS, which isn't working yet anyway
-                if x < 2044 or x > 6032 or y < 1533 or y > 4599:
-                    continue
-
                 try:
                     theta = star['theta']
                     kronrad, flag = sep.kron_radius(subtracted, x, y, a, b, theta, 6.0)
