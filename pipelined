@@ -634,7 +634,8 @@ class PipelineDaemon:
                 'exptime': frame.header['EXPTIME'],
                 'saved': frame.header['FILESAVE'],
                 'filename': frame.header['FILENAME'],
-                'size': ds,
+                'size': [ds[1], ds[0]],
+                'clipsize': self._dashboard_clip_size,
                 'hfd': hfd,
                 'medcnts': medcnts
             }
@@ -659,7 +660,7 @@ class PipelineDaemon:
             png = Image.fromarray(clipped).convert('RGB')
             png = ImageOps.flip(png)
             png.save('/mnt/dashboard-generated/dashboard-' + camera_id + '-clip.jpg', 'JPEG',
-                     quality=80, optimize=True, progressive=True, clobber=True)
+                     quality=40, optimize=True, progressive=True, clobber=True)
 
             with open('/mnt/dashboard-generated/dashboard-' + camera_id + '.json', 'w') as outfile:
                 json.dump(metadata, outfile)
