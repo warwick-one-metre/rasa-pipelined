@@ -538,7 +538,7 @@ class PipelineDaemon:
                         continue
 
                     objects.append((x, y, flux, 2 * r * platescale))
-                except:
+                except Exception:
                     # Ignore errors in individual objects
                     pass
 
@@ -560,10 +560,12 @@ class PipelineDaemon:
                 return
 
             median = round(numpy.median(objects['HFD']), 2)
-            frame.header.append(create_float_card('MEDHFD', median,
-                                                  '[arcsec] median estimated half-flux diameter', 1), end=True)
-            frame.header.append(fits.Card('HFDCNT', len(objects),
-                                          'number of sources used to estimate the HFD'), end=True)
+            frame.header.append(
+                create_float_card('MEDHFD', median,
+                                  '[arcsec] median estimated half-flux diameter', 1), end=True)
+            frame.header.append(
+                fits.Card('HFDCNT', len(objects),
+                          'number of sources used to estimate the HFD'), end=True)
         except Exception:
             print('failed to calculate HFD with error:')
             traceback.print_exc(file=sys.stdout)
