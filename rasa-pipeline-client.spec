@@ -1,5 +1,5 @@
 Name:      rasa-pipeline-client
-Version:   2.2.2
+Version:   2.2.3
 Release:   0
 Url:       https://github.com/warwick-one-metre/rasa-pipelined
 Summary:   Pipeline client for the RASA prototype telescope.
