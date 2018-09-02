@@ -21,12 +21,10 @@
 # pylint: disable=broad-except
 
 import os
-from pathlib import Path
 import random
 import subprocess
 import sys
 import numpy as np
-import pyds9
 import Pyro4
 from warwick.observatory.common import daemons
 from warwick.rasa.pipeline import CommandStatus
@@ -218,6 +216,10 @@ def register_preview(args):
     camera_id = 'RASA'
 
     try:
+        # This import can take a few hundred milliseconds,
+        # so we only import it when we know we need it
+        import pyds9
+
         # Generate a random name to avoid collisions
         names = pyds9.ds9_targets()
         while True:
