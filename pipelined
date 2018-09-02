@@ -1051,7 +1051,7 @@ class PipelineDaemon:
             return CommandStatus.Succeeded
 
     @Pyro4.expose
-    def configure(self, params):
+    def configure(self, params, quiet=False):
         """Set pipeline configuration to the requested state
            params should be a dictionary with the following keys:
               path: Path where images should be saved
@@ -1076,37 +1076,46 @@ class PipelineDaemon:
             if directory_status != CommandStatus.Succeeded:
                 return directory_status
 
-            log.info(LOG_NAME, 'Frame archive directory set to ' + str(self._output_directory))
+            if not quiet:
+                log.info(LOG_NAME, 'Frame archive directory set to ' + str(self._output_directory))
 
             self._output_frame_prefix = params.get('prefix', 'unknown')
-            log.info(LOG_NAME, 'Frame prefix set to ' + self._output_frame_prefix)
+            if not quiet:
+                log.info(LOG_NAME, 'Frame prefix set to ' + self._output_frame_prefix)
 
             self._frame_type = params.get('type', 'JUNK')
-            log.info(LOG_NAME, 'Frame type set to ' + self._frame_type)
+            if not quiet:
+                log.info(LOG_NAME, 'Frame type set to ' + self._frame_type)
 
             self._frame_object = params.get('object', '')
-            log.info(LOG_NAME, 'Frame object set to ' + self._frame_object)
+            if not quiet:
+                log.info(LOG_NAME, 'Frame object set to ' + self._frame_object)
 
             for k, v in params.get('archive', {c: False for c in CAMERAS}).items():
                 self._output_save_to_disk[k] = v
-                log.info(LOG_NAME, 'Frame archiving for ' + k + \
-                    (' enabled' if v else ' disabled'))
+                if not quiet:
+                    log.info(LOG_NAME, 'Frame archiving for ' + k + \
+                        (' enabled' if v else ' disabled'))
 
             self._wcs_enabled = params.get('wcs', False)
-            log.info(LOG_NAME, 'WCS solution ' + \
-                ('enabled' if self._wcs_enabled else 'disabled'))
+            if not quiet:
+                log.info(LOG_NAME, 'WCS solution ' + \
+                    ('enabled' if self._wcs_enabled else 'disabled'))
 
             self._intensity_stats_enabled = params.get('intstats', False)
-            log.info(LOG_NAME, 'Intensity statistics ' + \
-                ('enabled' if self._intensity_stats_enabled else 'disabled'))
+            if not quiet:
+                log.info(LOG_NAME, 'Intensity statistics ' + \
+                    ('enabled' if self._intensity_stats_enabled else 'disabled'))
 
             self._hfd_enabled = params.get('hfd', False)
-            log.info(LOG_NAME, 'HFD calculation ' + \
-                ('enabled' if self._hfd_enabled else 'disabled'))
+            if not quiet:
+                log.info(LOG_NAME, 'HFD calculation ' + \
+                    ('enabled' if self._hfd_enabled else 'disabled'))
 
             self._compression_enabled = params.get('compression', False)
-            log.info(LOG_NAME, 'Frame compression ' + \
-                ('enabled' if self._compression_enabled else 'disabled'))
+            if not quiet:
+                log.info(LOG_NAME, 'Frame compression ' + \
+                    ('enabled' if self._compression_enabled else 'disabled'))
 
             self.__save_config()
             return CommandStatus.Succeeded
