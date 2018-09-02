@@ -24,7 +24,6 @@ def configure_flats_validation_schema():
     return {
         'type': 'object',
         'additionalProperties': False,
-        'required': ['path', 'prefix'],
         'properties': {
             'path': {
                 'type': 'string',
@@ -40,7 +39,7 @@ def configure_standard_validation_schema():
     return {
         'type': 'object',
         'additionalProperties': False,
-        'required': ['path', 'prefix', 'type', 'archive'],
+        'required': ['type'],
         'properties': {
             'path': {
                 'type': 'string',
@@ -59,8 +58,8 @@ def configure_standard_validation_schema():
                 'type': 'object',
                 'additionalProperties': False,
                 'properties': {
-                    'RASA': { 'type': 'boolean' }
-                }
+                    'RASA': {'type': 'boolean'}
+                },
             },
             'wcs': {
                 'type': 'boolean'
@@ -74,5 +73,37 @@ def configure_standard_validation_schema():
             'compression': {
                 'type': 'boolean'
             }
-        }
+        },
+        'allOf': [
+            {
+                'anyOf': [
+                    {
+                        'not': {
+                            'properties': {
+                                'type': { 'enum': ['SCIENCE'] }
+                            },
+                        }
+                    },
+                    {
+                        'required': ['object']
+                    },
+                ]
+            },
+            {
+                'anyOf': [
+                    {
+                        'properties': {
+                            'archive': {
+                                'properties': {
+                                    'RASA': {'enum': [False]}
+                                }
+                            }
+                        }
+                    },
+                    {
+                        'required': ['prefix']
+                    }
+                ]
+            }
+        ]
     }
