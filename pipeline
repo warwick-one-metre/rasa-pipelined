@@ -133,13 +133,8 @@ def dashboard(args):
 def set_archive_directory(args):
     """Set the frame archive directory"""
     if len(args) == 1:
-        # Validate path and make it absolute
-        try:
-            path = str(Path(args[0]).resolve())
-        except Exception:
-            return 50
         with daemons.rasa_pipeline.connect() as pipeline:
-            return pipeline.set_archive_directory(path)
+            return pipeline.set_archive_directory(args[0])
     print('usage: {} dir <output frame directory>'.format(SCRIPT_NAME))
     return -1
 
@@ -261,21 +256,6 @@ def register_preview(args):
     with daemons.rasa_pipeline.connect() as pipeline:
         return pipeline.register_preview(camera_id, address)
 
-def start_night():
-    """Creates a new night directory and resets archive configuration"""
-    with daemons.rasa_pipeline.connect() as pipeline:
-        ret = pipeline.start_night()
-        if ret != 0:
-            return ret
-
-    #with daemons.rasa_tcs_diskspace.connect() as diskspace:
-    #    latest = diskspace.last_measurement()
-    #    if latest['data_fs_available_bytes'] < DISKSPACE_WARN_THRESHOLD:
-    #        print('warning: data partition has less than 15 GiB remaining')
-    #        return -1
-
-    return 0
-
 def print_usage():
     """Prints the utility help"""
     print('usage: {} <command> [<args>]'.format(SCRIPT_NAME))
@@ -283,7 +263,6 @@ def print_usage():
     print('general commands:')
     print('   status       print a human-readable summary of the pipeline status')
     print('   preview      open a ds9 window to preview acquired frames')
-    print('   startnight   configures the pipeline for a new night')
     print('output frame commands')
     print('   archive      enable or disable frame archiving')
     print('   dir          set archive directory')
@@ -325,8 +304,6 @@ if __name__ == '__main__':
         run_command(lambda: dashboard(sys.argv[2:]))
     if sys.argv[1] == 'compression':
         run_command(lambda: set_compression(sys.argv[2:]))
-    if sys.argv[1] == 'startnight':
-        run_command(start_night)
     if sys.argv[1] == 'status':
         run_command(status)
 

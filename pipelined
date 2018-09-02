@@ -26,6 +26,7 @@
 # pylint: disable=too-many-statements
 # pylint: disable=too-many-lines
 # pylint: disable=too-many-nested-blocks
+# pylint: disable=too-many-branches
 
 import datetime
 import json
@@ -66,7 +67,7 @@ MAX_NOTIFY_WAIT = 10
 # Timeout for telescope / environment status queries
 STATUS_QUERY_TIMEOUT = 1
 
-BASE_DATA_PATH = pathlib.Path('/home/ops/OBS_DATA/')
+BASE_DATA_PATH = pathlib.Path('/data/rasa/')
 
 # Configuration cache
 CONFIG_PATH = '/var/tmp/pipeline.json'
@@ -251,6 +252,37 @@ class PipelineDaemon:
                 })
 
             json.dump(data, outfile)
+
+    def __set_archive_directory(self, path):
+        """Attempts to set the output data directory
+           If path is 'default' a YYYYMMDD night directory will be created in the BASE_DATA_PATH
+           otherwise, the given path will be checked to ensure it is writable
+           Returns a CommandStatus indicating the result
+        """
+        try:
+            if path == 'default':
+                # Default to a night directory in the base data dir
+                # Directory will be created if required
+                night = (datetime.datetime.utcnow() - datetime.timedelta(hours=12))
+                path = BASE_DATA_PATH / night.strftime('%Y%m%d')
+                try:
+                    path.mkdir(parents=True)
+                except FileExistsError:
+                    pass
+                except Exception:
+                    print('failed to create night dir with exception:')
+                    traceback.print_exc(file=sys.stdout)
+                    return CommandStatus.NewDirectoryFailed
+            else:
+                # Custom directories are expected to already exist
+                path = pathlib.Path(path).resolve()
+
+            testfile = tempfile.TemporaryFile(dir=str(path))
+            self._output_directory = path
+            testfile.close()
+            return CommandStatus.Succeeded
+        except Exception:
+            return CommandStatus.DirectoryNotWritable
 
     def __process_previews(self, unregister_on_error=True):
         """Updates the ds9 preview windows with data from the main processing thread"""
@@ -813,16 +845,11 @@ class PipelineDaemon:
             if not success:
                 return CommandStatus.Blocked
 
-            # Check that the directory exists and is writable
-            try:
-                path = pathlib.Path(directory).resolve()
-                testfile = tempfile.TemporaryFile(dir=str(path))
-                self._output_directory = path
-                testfile.close()
-            except Exception:
-                return CommandStatus.DirectoryNotWritable
+            directory_status = self.__set_archive_directory(directory)
+            if directory_status != CommandStatus.Succeeded:
+                return directory_status
 
-            log.info(LOG_NAME, 'Frame archive directory set to ' + str(path))
+            log.info(LOG_NAME, 'Frame archive directory set to ' + str(self._output_directory))
             self.__save_config()
             return CommandStatus.Succeeded
 
@@ -1045,15 +1072,11 @@ class PipelineDaemon:
             if not success:
                 return CommandStatus.Blocked
 
-            try:
-                path = pathlib.Path(params.get('path', BASE_DATA_PATH)).resolve()
-                testfile = tempfile.TemporaryFile(dir=str(path))
-                self._output_directory = path
-                testfile.close()
-            except Exception:
-                return CommandStatus.DirectoryNotWritable
+            directory_status = self.__set_archive_directory(params.get('path', 'default'))
+            if directory_status != CommandStatus.Succeeded:
+                return directory_status
 
-            log.info(LOG_NAME, 'Frame archive directory set to ' + str(path))
+            log.info(LOG_NAME, 'Frame archive directory set to ' + str(self._output_directory))
 
             self._output_frame_prefix = params.get('prefix', 'unknown')
             log.info(LOG_NAME, 'Frame prefix set to ' + self._output_frame_prefix)
@@ -1086,38 +1109,6 @@ class PipelineDaemon:
                 ('enabled' if self._compression_enabled else 'disabled'))
 
             self.__save_config()
-            return CommandStatus.Succeeded
-
-    @Pyro4.expose
-    def start_night(self):
-        """Creates a new data directory for the current night and resets archive configuration"""
-        if not pyro_client_matches(CONTROL_IPS):
-            return CommandStatus.InvalidControlIP
-
-        with TryLock(self._command_lock) as success:
-            if not success:
-                return CommandStatus.Blocked
-
-            night = (datetime.datetime.utcnow() - datetime.timedelta(hours=12)).strftime('%Y%m%d')
-            path = BASE_DATA_PATH / night
-            try:
-                os.makedirs(str(path))
-                self._output_directory = path
-            except Exception:
-                print('failed to create night dir with exception:')
-                traceback.print_exc(file=sys.stdout)
-                return CommandStatus.NewDirectoryFailed
-
-            self._output_frame_prefix = 'unknown'
-            self._frame_object = ''
-            self._frame_type = 'JUNK'
-
-            for cam in CAMERAS:
-                self._output_save_to_disk[cam] = False
-            self._compression_enabled = False
-            self.__save_config()
-
-            log.info(LOG_NAME, 'Started new night ' + night)
             return CommandStatus.Succeeded
 
     @Pyro4.expose
