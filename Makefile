@@ -13,7 +13,8 @@ all:
 	awk '{sub("SOFTWARE_VERSION = .*$$","SOFTWARE_VERSION = \"$(SERVER_VERSION) ($(GIT_VERSION))\""); print $0}' pipelined.bak > pipelined
 	${RPMBUILD} -ba rasa-pipeline-server.spec
 	${RPMBUILD} -ba rasa-pipeline-client.spec
-	${RPMBUILD} -ba python34-warwick-rasa-pipeline.spec
+	${RPMBUILD} -ba python36-warwick-rasa-pipeline.spec
+	mv pipelined.bak pipelined
 	mv build/noarch/*.rpm .
 	rm -rf build
 
