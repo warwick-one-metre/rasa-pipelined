@@ -241,7 +241,6 @@ def register_preview(args):
         ds9.set('view colorbar no')
         ds9.set('view layout vertical')
         ds9.set('preserve pan yes')
-        ds9.set('preserve scale yes')
         ds9.set('scale mode zscale')
         ds9.set('width 1200')
         ds9.set('height 860')
