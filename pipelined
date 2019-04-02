@@ -116,6 +116,7 @@ ENVIRONMENT_KEYS = [
     ('goto_vaisala', 'dew_point_delta', 'DEWDELTA', '[deg c] temperature above dew point', 1),
     ('tng', 'dust', 'TNGDUST', '[ug/m3] TNG Dust measurement', 1),
     ('tng', 'seeing', 'TNGDIMM', '[arcsec] TNG DIMM seeing measurement', 2),
+    ('robodimm', 'seeing', 'INGDIMMM', '[arcsec] ING RoboDIMM seeing measurement', 2),
 ]
 
 # TODO: Include environment daemon software versions, wind direction
@@ -423,15 +424,15 @@ class PipelineDaemon:
         h.append(desc, end=True)
 
         try:
-            with daemons.rasa_environment.connect(STATUS_QUERY_TIMEOUT) as environment:
+            with daemons.observatory_environment.connect(STATUS_QUERY_TIMEOUT) as environment:
                 data = environment.status()
                 for (source, sensor, key, comment, places) in ENVIRONMENT_KEYS:
-                    if source not in data or sensor not in data[source] \
-                        or not data[source][sensor]['current']:
-                        h.append(fits.Card('COMMENT', ' ' + key + ' not available', ''), end=True)
+                    sensor_data = data.get(source, {}).get('parameters', {}).get(sensor, {})
+                    if sensor_data and sensor_data.get('current', False):
+                        h.append(create_float_card(key, sensor_data['latest'], comment, places),
+                                 end=True)
                     else:
-                        h.append(create_float_card(key, data[source][sensor]['latest'],
-                                                   comment, places), end=True)
+                        h.append(fits.Card('COMMENT', ' ' + key + ' not available', ''), end=True)
 
         except Exception as e:
             print('failed to add environment headers with error:')
