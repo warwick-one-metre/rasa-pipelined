@@ -54,6 +54,7 @@ from warwick.observatory.common import (
     IP,
     helpers,
     TryLock)
+from warwick.observatory.common.daemons import PyroDaemon
 from warwick.observatory.common.helpers import pyro_client_matches
 from warwick.rasa.pipeline import CommandStatus
 from warwick.rasa.focuser import FocuserStatus
@@ -177,6 +178,8 @@ class PipelineDaemon:
         for cam in CAMERAS:
             self._output_save_to_disk[cam] = False
             self._ds9_preview_addresses[cam] = []
+
+        self._callback_daemon = None
 
         # Min and max percentage thresholds to use for the preview pngs
         self._dashboard_min_threshold = 5
@@ -716,6 +719,15 @@ class PipelineDaemon:
             with daemons.rasa_operations.connect() as ops:
                 ops.notify_processed_frame(header)
 
+            if self._callback_daemon:
+                try:
+                    with self._callback_daemon.connect() as callback:
+                        callback.notify_processed_frame(header)
+                except:
+                    print('Unregistering callback script after error:')
+                    traceback.print_exc(file=sys.stdout)
+                    self._callback_daemon = None
+
         except Exception as e:
             print('failed to notify operations daemon of completed frame with error:')
             traceback.print_exc(file=sys.stdout)
@@ -1120,6 +1132,22 @@ class PipelineDaemon:
 
             self.__save_config()
             return CommandStatus.Succeeded
+
+    @Pyro4.expose
+    def register_callback(self, name, host, port, timeout):
+        """
+        Register a Pyro address to be notified with processed frame headers.
+        Callback must expose a notify_processed_frame method.
+
+        :param host: name for the callback PyroDaemon
+        :param host: host for the callback PyroDaemon
+        :param port: port for the callback PyroDaemon
+        :param port: timeout for the callback PyroDaemon
+        """
+        if host:
+            self._callback_daemon = PyroDaemon(name, host, port, timeout)
+        else:
+            self._callback_daemon = None
 
     @Pyro4.expose
     def report_status(self):
