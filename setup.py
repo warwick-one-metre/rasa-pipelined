@@ -18,7 +18,7 @@ from distutils.core import setup
 
 setup(name='warwick.rasa.pipeline',
       version='0',
-      packages = ['warwick.rasa.pipeline'],
+      packages=['warwick.rasa.pipeline'],
       author='Paul Chote',
       description='Common code for the RASA prototype pipeline daemon',
       license='GNU GPLv3',

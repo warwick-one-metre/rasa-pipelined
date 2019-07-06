@@ -17,13 +17,8 @@
 
 """Daemon for the Warwick one-metre telescope frame pipeline"""
 
-# pylint: disable=too-few-public-methods
 # pylint: disable=no-self-use
-# pylint: disable=broad-except
-# pylint: disable=invalid-name
 # pylint: disable=too-many-instance-attributes
-# pylint: disable=too-many-locals
-# pylint: disable=too-many-statements
 # pylint: disable=too-many-lines
 # pylint: disable=too-many-nested-blocks
 # pylint: disable=too-many-branches
@@ -122,7 +117,6 @@ ENVIRONMENT_KEYS = [
 
 # TODO: Include environment daemon software versions, wind direction
 
-# This should be kept in sync with the dictionary in pipeline
 
 def rescale_image_data(data, clip_low, clip_high):
     """ Returns a normalised array where clip_low percent of the pixels are 0 and
@@ -134,6 +128,7 @@ def rescale_image_data(data, clip_low, clip_high):
     data = numpy.clip(data, low, high)
     return scale * (data - low)
 
+
 def create_float_card(key, value, comment, places):
     """Create a fits.Card instance with a float value
        rounded to a specified number of significant figures
@@ -142,6 +137,7 @@ def create_float_card(key, value, comment, places):
     card = fits.Card.fromstring(fmt.format(key, value))
     card.comment = comment
     return card
+
 
 class PipelineDaemon:
     """Daemon interface for data pipeline"""
@@ -1175,6 +1171,7 @@ class PipelineDaemon:
             'frame_object': self._frame_object,
             'frame_prefix': self._output_frame_prefix
         }
+
 
 if __name__ == '__main__':
     daemons.rasa_pipeline.launch(PipelineDaemon())
