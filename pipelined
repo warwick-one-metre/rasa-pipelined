@@ -352,6 +352,8 @@ class PipelineDaemon:
             ('SITELAT', 'telescope latitude (north)'),
             ('SITELONG', 'telescope longitude (east)'),
             ('SITEELEV', '[m] telescope elevation'),
+            ('MOONSEP', '[deg] nominal distance from moon', 1),
+            ('SUNSEP', '[deg] nominal distance from sun', 1),
             ('FOCSWVER', 'focus server software version'),
             ('FOCSTATE', 'focuser status'),
             ('FOCTEMP', '[deg] focuser temperature', 1),
@@ -381,6 +383,8 @@ class PipelineDaemon:
                     values['TELHAD'] = math.degrees(harad)
                     values['ALTITUDE'] = math.degrees(t['alt'])
                     values['AZIMUTH'] = math.degrees(t['az'])
+                    values['MOONSEP'] = math.degrees(t['moon_separation'])
+                    values['SUNSEP'] = math.degrees(t['sun_separation'])
 
                 if 'site_latitude' in t:
                     values['SITELAT'] = helpers.sexagesimal(math.degrees(t['site_latitude']))
