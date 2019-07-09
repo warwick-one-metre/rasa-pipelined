@@ -112,7 +112,7 @@ ENVIRONMENT_KEYS = [
     ('goto_vaisala', 'dew_point_delta', 'DEWDELTA', '[deg c] temperature above dew point', 1),
     ('tng', 'dust', 'TNGDUST', '[ug/m3] TNG Dust measurement', 1),
     ('tng', 'seeing', 'TNGDIMM', '[arcsec] TNG DIMM seeing measurement', 2),
-    ('robodimm', 'seeing', 'INGDIMMM', '[arcsec] ING RoboDIMM seeing measurement', 2),
+    ('robodimm', 'seeing', 'INGDIMM', '[arcsec] ING RoboDIMM seeing measurement', 2),
 ]
 
 # TODO: Include environment daemon software versions, wind direction
