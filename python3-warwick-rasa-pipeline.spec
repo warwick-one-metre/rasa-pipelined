@@ -1,5 +1,5 @@
-Name:           python36-warwick-rasa-pipeline
-Version:        1.1.0
+Name:           python3-warwick-rasa-pipeline
+Version:        1.1.1
 Release:        0
 License:        GPL3
 Summary:        Common backend code for the RASA prototype telescope pipeline daemon
