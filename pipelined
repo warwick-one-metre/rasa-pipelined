@@ -90,7 +90,7 @@ WCS_SCALE_LOW = 1.55
 WCS_SEARCH_RADIUS = 1.75
 
 # Unbinned arcseconds per pixel
-OBJECT_PLATESCALE = 1.57
+OBJECT_PLATESCALE = 1
 
 # Minimum number of pixels for considering a source for HFD estimation
 OBJECT_MINPIX = 4
@@ -580,10 +580,7 @@ class PipelineDaemon:
 
             dtype = [('X', float), ('Y', float), ('FLUX', float), ('HFD', float)]
 
-            # HACK: Limit object detection to 500 brightest objects
-            # This lets us get sensible focus measurements for now
-            # at a tradeoff of WCS, which isn't working yet anyway
-            return numpy.array(sorted(objects, key=lambda o: -o[2])[:500], dtype=dtype)
+            return numpy.array(sorted(objects, key=lambda o: -o[2]), dtype=dtype)
         except Exception:
             print('failed to extract objects with error:')
             traceback.print_exc(file=sys.stdout)
@@ -595,13 +592,31 @@ class PipelineDaemon:
             if objects is None or len(objects) <= 0:
                 return
 
-            median = round(numpy.median(objects['HFD']), 2)
-            frame.header.append(
-                create_float_card('MEDHFD', median,
-                                  '[arcsec] median estimated half-flux diameter', 1), end=True)
-            frame.header.append(
-                fits.Card('HFDCNT', len(objects),
-                          'number of sources used to estimate the HFD'), end=True)
+            regions = {
+                'TL': [0, 500, 6132-500, 6132],
+                'TR': [8176-500, 8176, 6132-500, 6132],
+                'BL': [0, 500, 0, 500],
+                'BR': [8176-500, 8176, 0, 500],
+            }
+
+            from astropy.table import Table
+            objects = Table(objects, names=('X', 'Y', 'FLUX', 'HFD'))
+
+            for key, (x1, x2, y1, y2) in regions.items():
+                region_objects = objects[numpy.logical_and.reduce([
+                    objects['X'] >= x1,
+                    objects['X'] <= x2,
+                    objects['Y'] >= y1,
+                    objects['Y'] <= y2
+                ])]
+
+                median = round(numpy.median(region_objects['HFD']), 2)
+                frame.header.append(
+                    create_float_card('MEDHFD' + key, median,
+                                      '[arcsec] median estimated half-flux diameter', 1), end=True)
+                frame.header.append(
+                    fits.Card('HFDCNT' + key, len(objects),
+                              'number of sources used to estimate the HFD'), end=True)
         except Exception:
             print('failed to calculate HFD with error:')
             traceback.print_exc(file=sys.stdout)
@@ -641,16 +656,16 @@ class PipelineDaemon:
             ('regions', ANNOTATION_LABEL.format(3 * width / 4, -ANNOTATION_LABEL_MARGIN, saved))
         ]
 
-        if 'MEDHFD' in frame.header:
+        if 'MEDHFDTL' in frame.header:
             hfd_label = ANNOTATION_LABEL.format(
                 3 * width / 4, -3 * ANNOTATION_LABEL_MARGIN,
-                'HFD: ' + str(frame.header['MEDHFD']) + ' arcsec')
+                'HFD: ' + str(frame.header['MEDHFDTL']) + '/' + str(frame.header['MEDHFDTR']) + '/' + str(frame.header['MEDHFDBL']) + '/' + str(frame.header['MEDHFDBR']) + ' arcsec')
             annotations.append(('regions', hfd_label))
 
-        if objects is not None:
-            for o in objects:
-                cr = 'image; circle({},{},{}) #select=0 color=red'.format(o[0] + 1, o[1] + 1, o[3])
-                annotations.append(('regions', cr))
+        #if objects is not None:
+        #    for o in objects:
+        #        cr = 'image; circle({},{},{}) #select=0 color=red'.format(o[0] + 1, o[1] + 1, o[3])
+        #        annotations.append(('regions', cr))
         return annotations
 
     def __update_dashboard(self, camera_id, frame):
@@ -760,8 +775,8 @@ class PipelineDaemon:
                             date.strftime('%Y%m%d%H%M%S%f')[:-3] + ext
 
                     self.__move_bscale_bzero(frame)
-                    self.__add_telescope_header(frame)
-                    self.__add_environment_header(frame)
+                    #self.__add_telescope_header(frame)
+                    #self.__add_environment_header(frame)
                     self.__add_pipeline_header(camera_id, frame, filename)
 
                     if self._intensity_stats_enabled:
@@ -795,9 +810,9 @@ class PipelineDaemon:
                         savepath = str(self._output_directory / filename)
 
                         # Simulate an atomic write by writing to a temporary file then renaming
-                        frame.writeto(tmppath, overwrite=True)
-                        shutil.move(tmppath, savepath)
-
+                        #frame.writeto(tmppath, overwrite=True)
+                        #shutil.move(tmppath, savepath)
+                        frame.writeto(savepath, overwrite=True)
                         print('Saved frame ' + filename)
                         log.info(LOG_NAME, 'Saved frame ' + filename)
                         steps.append('compress' if self._compression_enabled else 'save')
